@@ -216,6 +216,16 @@ export const store = {
     return state.entries.filter((e) => sameName(e.user, user)).sort(byTime);
   },
 
+  // Names of everyone in your team, including people who haven't logged anything yet.
+  // The server's member list decides when there is one (people who left aren't shown);
+  // otherwise (demo, not synced yet) whoever has entries.
+  teamMembers() {
+    const names = [...(state.team?.members || [])];
+    if (!state.team?.members) for (const e of this.teamEntries()) if (!names.some((n) => sameName(n, e.user))) names.push(e.user);
+    if (state.user && !names.some((n) => sameName(n, state.user))) names.push(state.user);
+    return names;
+  },
+
   // Entries of everyone in your team, plus yours (for the team page).
   teamEntries() {
     let list = state.entries;
@@ -232,10 +242,8 @@ export const store = {
     const found = await rpc('find_team', { p_code: code });
     if (!found) return null;
     const team = asTeam(found);
-    const rows = await rpc('team_entries', { p_code: code });
-    const members = [];
-    for (const r of rows) if (!members.some((m) => sameName(m, r.user_name))) members.push(r.user_name);
-    return { team, members };
+    const rows = await rpc('team_members', { p_code: code });
+    return { team, members: rows.map((r) => r.user_name) };
   },
 
   // Creates a team, starting with your current rules, and returns it (call joinTeam with it to enter it).
@@ -255,6 +263,7 @@ export const store = {
     // What the team already has from you (e.g. you were in it before, or another device):
     // those entries are reused instead of uploaded twice.
     const existing = SERVER ? await rpc('team_entries', { p_code: team.code }) : [];
+    if (SERVER) await rpc('join_team', { p_code: team.code, p_name: state.user });
     state.team = { code: team.code, name: team.name, rules: team.rules };
     if (!DEMO) state.entries = state.entries.filter(mine); // other teams' people go
     for (const e of state.entries) {
@@ -276,6 +285,10 @@ export const store = {
   },
 
   async leaveTeam() {
+    if (SERVER && state.team) {
+      // Best effort: leaving still works offline, the team just keeps listing you.
+      await rpc('leave_team', { p_code: state.team.code, p_name: state.user }).catch((err) => console.warn('Leave failed:', err));
+    }
     state.team = null;
     if (!DEMO) state.entries = state.entries.filter(mine);
     state.removed = [];
@@ -289,9 +302,10 @@ export const store = {
     const code = state.team.code;
     try {
       await flush();
-      const [rows, info] = await Promise.all([
+      const [rows, info, members] = await Promise.all([
         rpc('team_entries', { p_code: code }),
         rpc('find_team', { p_code: code }),
+        rpc('team_members', { p_code: code }),
       ]);
       if (state.team?.code !== code) return { ok: true, changed: false }; // left meanwhile
       const beforeRules = JSON.stringify(this.rules);
@@ -300,6 +314,12 @@ export const store = {
         state.team.rules = rulesOf(info) || state.team.rules;
       }
       const rulesChanged = JSON.stringify(this.rules) !== beforeRules;
+      state.team.members = members.map((m) => m.user_name);
+      // Joined before the member list existed (or it failed then): register now.
+      if (!state.team.members.some((n) => sameName(n, state.user))) {
+        await rpc('join_team', { p_code: code, p_name: state.user });
+        state.team.members.push(state.user);
+      }
       const before = signature(state.entries);
       const server = rows.map((r) => fromRow(r, code)).filter((e) => !state.removed.includes(e.id));
       const waiting = state.entries.filter((e) => mine(e) && !e.up && !server.some((s) => s.id === e.id));

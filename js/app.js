@@ -530,6 +530,7 @@ const teamPage = createTeamPage(els.teamBody, {
   getData: () => ({
     team: store.team,
     entries: store.teamEntries(),
+    members: store.teamMembers(),
     me: user,
     status: teamStatus(),
     available: store.hasTeams,

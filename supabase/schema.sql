@@ -36,13 +36,29 @@ create index if not exists entries_team_idx on public.entries (team_code, day);
 -- Rows from before teams existed belong to no team; the app re-uploads them when you join one.
 delete from public.entries where team_code is null;
 
+-- Who is in each team (also people who haven't logged anything yet). Names are unique per team.
+create table if not exists public.team_members (
+  team_code text not null references public.teams (code) on delete cascade,
+  user_name text not null check (char_length(user_name) between 1 and 20),
+  joined_at timestamptz not null default now()
+);
+create unique index if not exists team_members_name_idx on public.team_members (team_code, lower(user_name));
+
+-- Everyone who already has entries in a team is a member.
+insert into public.team_members (team_code, user_name)
+select distinct on (e.team_code, lower(e.user_name)) e.team_code, e.user_name
+from public.entries e
+where e.team_code is not null
+on conflict do nothing;
+
 -- No direct table access for the app's public key: only the functions below.
 alter table public.teams enable row level security;
 alter table public.entries enable row level security;
+alter table public.team_members enable row level security;
 drop policy if exists "Everyone can read" on public.entries;
 drop policy if exists "Everyone can add" on public.entries;
 drop policy if exists "Undo recent entries" on public.entries;
-revoke all on table public.teams, public.entries from anon, authenticated;
+revoke all on table public.teams, public.entries, public.team_members from anon, authenticated;
 
 -- Creates a team with a fresh code. Returns {"code": ..., "name": ...}.
 create or replace function public.create_team(p_name text)
@@ -95,6 +111,36 @@ begin
   return result;
 end $;
 
+-- Adds a person to a team (doing it again is harmless).
+create or replace function public.join_team(p_code text, p_name text)
+returns void
+language plpgsql security definer set search_path = public as $
+begin
+  if not exists (select 1 from teams where code = upper(trim(p_code))) then
+    raise exception 'Unknown team code';
+  end if;
+  insert into team_members (team_code, user_name) values (upper(trim(p_code)), trim(p_name))
+  on conflict do nothing;
+end $;
+
+-- Removes a person from a team. Their past entries stay but are no longer shown.
+create or replace function public.leave_team(p_code text, p_name text)
+returns void
+language sql security definer set search_path = public as $
+  delete from team_members
+  where team_code = upper(trim(p_code)) and lower(user_name) = lower(trim(p_name));
+$;
+
+-- The members of a team, in the order they joined.
+create or replace function public.team_members(p_code text)
+returns table (user_name text, joined_at timestamptz)
+language sql stable security definer set search_path = public as $
+  select m.user_name, m.joined_at
+  from team_members m
+  where m.team_code = upper(trim(p_code))
+  order by m.joined_at;
+$;
+
 -- All entries of a team, oldest first.
 create or replace function public.team_entries(p_code text)
 returns table (id uuid, user_name text, day date, count int, created_at timestamptz)
@@ -132,6 +178,9 @@ grant execute on function
   public.find_team(text),
   public.update_team_rules(text, int, int, date),
   public.team_entries(text),
+  public.join_team(text, text),
+  public.leave_team(text, text),
+  public.team_members(text),
   public.add_entries(text, json),
   public.remove_entries(text, uuid[])
 to anon, authenticated;

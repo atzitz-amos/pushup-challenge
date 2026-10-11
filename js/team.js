@@ -39,13 +39,13 @@ function finishedAt(entries) {
   return null;
 }
 
-// Everyone in the team, ranked by streak, then completed days, then today's total.
-function rankPeople(entries, me) {
-  const groups = [];
+// Everyone in the team (members with no entries yet too), ranked by streak,
+// then completed days, then today's total.
+function rankPeople(entries, me, members) {
+  const groups = members.map((name) => ({ name, entries: [] }));
   for (const e of entries) {
-    let g = groups.find((x) => sameName(x.name, e.user));
-    if (!g) groups.push((g = { name: e.user, entries: [] }));
-    g.entries.push(e);
+    const g = groups.find((x) => sameName(x.name, e.user));
+    if (g) g.entries.push(e); // entries of people who left the team are not shown
   }
   if (me && !groups.some((g) => sameName(g.name, me))) groups.push({ name: me, entries: [] });
   const list = groups.map((g) => {
@@ -220,7 +220,7 @@ function leaderRow(p, expanded, onToggle) {
 /* ---------- Page ---------- */
 
 // actions: { lookup(code) → {team, members} | null, create(name) → team, join(team), leave() }
-// getData(): { team, entries, me, status, available, inviteCode }
+// getData(): { team, entries, members, me, status, available, inviteCode }
 export function createTeamPage(root, { getData, actions }) {
   // Local UI state that survives re-renders (inputs, errors, confirmations).
   const ui = {
@@ -350,7 +350,7 @@ export function createTeamPage(root, { getData, actions }) {
   }
 
   function teamView(data) {
-    const list = rankPeople(data.entries, data.me);
+    const list = rankPeople(data.entries, data.me, data.members);
     const wrap = el('div', 'team-joined');
 
     // Team name and code
