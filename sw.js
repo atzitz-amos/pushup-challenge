@@ -1,5 +1,5 @@
 // Network-first service worker: always fresh when online, still opens offline.
-const CACHE = 'pushups-v2';
+const CACHE = 'pushups-v3';
 const SHELL = [
   './',
   'index.html',
@@ -33,8 +33,14 @@ self.addEventListener('activate', (e) => {
 
 self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
+  // Own files: always revalidate with the server, so an update shows up on the next open
+  // instead of whenever the HTTP cache expires.
+  const sameOrigin = new URL(e.request.url).origin === self.location.origin;
+  const request = sameOrigin && e.request.mode !== 'navigate'
+    ? new Request(e.request, { cache: 'no-cache' })
+    : e.request;
   e.respondWith(
-    fetch(e.request)
+    fetch(request)
       .then((res) => {
         if (res.ok) {
           const copy = res.clone();

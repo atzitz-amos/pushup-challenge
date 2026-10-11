@@ -420,12 +420,12 @@ function renderSoundToggle() {
   els.soundIcon.textContent = muted ? '🔇' : '🔊';
 }
 
-let calendarMonth = null;
+let calendar = null;
 registerPanel('calendar', {
   el: els.calendarPanel,
   async render() {
     const totals = totalsByDay(await store.entries(user));
-    calendarMonth = renderCalendar(els.calendarBody, {
+    calendar = renderCalendar(els.calendarBody, {
       totals,
       stats: computeStats(totals),
       onPick(key) {
@@ -436,11 +436,7 @@ registerPanel('calendar', {
     });
   },
   onOpen() {
-    // Start at the current month, keeping the summary in view when it fits.
-    const body = els.calendarBody;
-    body.scrollTop = calendarMonth && calendarMonth.offsetTop + calendarMonth.offsetHeight > body.clientHeight
-      ? calendarMonth.offsetTop - 8
-      : 0;
+    calendar?.show();
   },
 });
 
