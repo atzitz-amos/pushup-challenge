@@ -52,10 +52,12 @@ function stepper({ value, min, max, unit, onChange }) {
   return { el: wrap, set };
 }
 
-// getContext(): { rules, teamName }   save(rules) → Promise
-export function createSettingsPage(root, { getContext, save }) {
+// getContext(): { rules, teamName, push: { supported, reason, enabled } }
+// save(rules) → Promise, togglePush(on) → Promise
+export function createSettingsPage(root, { getContext, save, togglePush }) {
   let draft = null;
   let status = ''; // '', 'saving', 'saved', or an error message
+  let pushNote = ''; // message under the notifications switch
 
   function render() {
     const { rules, teamName } = getContext();
@@ -126,6 +128,35 @@ export function createSettingsPage(root, { getContext, save }) {
     wrap.append(goalCard, missCard, endCard);
     if (status && !['saving', 'saved'].includes(status)) wrap.appendChild(el('p', 'team-error', status));
     wrap.append(saveBtn, el('p', 'set-hint center', 'Past days are checked again against the new rules.'));
+
+    // Notifications
+    const { push } = getContext();
+    wrap.appendChild(el('span', 'th-label set-section', 'Notifications'));
+    const notifyCard = el('section', 'set-card');
+    const toggle = el('button', 'set-toggle');
+    toggle.type = 'button';
+    toggle.setAttribute('role', 'switch');
+    toggle.setAttribute('aria-checked', String(push.enabled));
+    toggle.disabled = !push.supported;
+    const text = el('span', 'mi-text');
+    text.append(el('b', null, 'Team notifications'), el('small', null, 'Get a notification when someone in your team saves push-ups.'));
+    toggle.append(el('span', 'mi-icon', '🔔'), text, el('span', 'switch'));
+    toggle.addEventListener('click', async () => {
+      toggle.disabled = true;
+      try {
+        await togglePush(!push.enabled);
+        pushNote = '';
+      } catch (err) {
+        pushNote = err.code === 'denied'
+          ? "Notifications weren't allowed. You can allow them in your phone settings."
+          : "Couldn't change notifications. Check your connection and try again.";
+      }
+      render();
+    });
+    notifyCard.appendChild(toggle);
+    const note = !push.supported ? push.reason : pushNote || (push.enabled && !getContext().teamName ? "You'll get notifications once you're in a team." : '');
+    if (note) notifyCard.appendChild(el('p', 'set-hint', note));
+    wrap.appendChild(notifyCard);
 
     root.replaceChildren(wrap);
 

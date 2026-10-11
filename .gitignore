@@ -1,0 +1,2 @@
+# Local secrets (e.g. the web push private key)
+*.local.txt

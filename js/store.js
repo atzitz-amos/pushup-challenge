@@ -70,7 +70,7 @@ const mine = (e) => sameName(e.user, state.user);
 
 /* ---------- Supabase (database functions over fetch, no library needed) ---------- */
 
-async function rpc(fn, args) {
+export async function rpc(fn, args) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 8000);
   try {
@@ -330,12 +330,17 @@ export const store = {
         state.team.members.push(state.user);
       }
       const before = signature(state.entries);
+      const known = new Set(state.entries.map((e) => e.id));
       const server = rows.map((r) => fromRow(r, code)).filter((e) => !state.removed.includes(e.id));
+      // Teammates' saves from the last minutes that this phone hasn't seen yet (not on the first sync).
+      const news = this.lastSync
+        ? server.filter((e) => !known.has(e.id) && !mine(e) && Date.now() - e.ts < 15 * 60 * 1000)
+        : [];
       const waiting = state.entries.filter((e) => mine(e) && !e.up && !server.some((s) => s.id === e.id));
       state.entries = [...server, ...waiting];
       persist();
       this.lastSync = Date.now();
-      return { ok: true, changed: signature(state.entries) !== before, rulesChanged };
+      return { ok: true, changed: signature(state.entries) !== before, rulesChanged, news };
     } catch (err) {
       console.warn('Sync failed:', err);
       return { ok: false, changed: false };

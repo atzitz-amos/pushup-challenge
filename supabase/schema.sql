@@ -51,14 +51,25 @@ from public.entries e
 where e.team_code is not null
 on conflict do nothing;
 
+-- Phones that asked for notifications about their team (Web Push subscriptions).
+create table if not exists public.push_subscriptions (
+  endpoint   text primary key,
+  team_code  text not null references public.teams (code) on delete cascade,
+  user_name  text not null,
+  p256dh     text not null,
+  auth       text not null,
+  created_at timestamptz not null default now()
+);
+
 -- No direct table access for the app's public key: only the functions below.
 alter table public.teams enable row level security;
 alter table public.entries enable row level security;
 alter table public.team_members enable row level security;
+alter table public.push_subscriptions enable row level security;
 drop policy if exists "Everyone can read" on public.entries;
 drop policy if exists "Everyone can add" on public.entries;
 drop policy if exists "Undo recent entries" on public.entries;
-revoke all on table public.teams, public.entries, public.team_members from anon, authenticated;
+revoke all on table public.teams, public.entries, public.team_members, public.push_subscriptions from anon, authenticated;
 
 -- Creates a team with a fresh code. Returns {"code": ..., "name": ...}.
 create or replace function public.create_team(p_name text)
@@ -173,6 +184,29 @@ language sql security definer set search_path = public as $$
   where team_code = upper(trim(p_code)) and id = any (p_ids) and created_at > now() - interval '1 day';
 $$;
 
+-- Saves (or moves) this phone's notification subscription to a team.
+create or replace function public.save_push_subscription(p_code text, p_name text, p_subscription json)
+returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if not exists (select 1 from teams where code = upper(trim(p_code))) then
+    raise exception 'Unknown team code';
+  end if;
+  insert into push_subscriptions (endpoint, team_code, user_name, p256dh, auth)
+  values (p_subscription ->> 'endpoint', upper(trim(p_code)), trim(p_name),
+          p_subscription -> 'keys' ->> 'p256dh', p_subscription -> 'keys' ->> 'auth')
+  on conflict (endpoint) do update
+    set team_code = excluded.team_code, user_name = excluded.user_name,
+        p256dh = excluded.p256dh, auth = excluded.auth;
+end $$;
+
+-- Stops notifications for this phone.
+create or replace function public.delete_push_subscription(p_endpoint text)
+returns void
+language sql security definer set search_path = public as $$
+  delete from push_subscriptions where endpoint = p_endpoint;
+$$;
+
 grant execute on function
   public.create_team(text),
   public.find_team(text),
@@ -182,5 +216,7 @@ grant execute on function
   public.leave_team(text, text),
   public.team_members(text),
   public.add_entries(text, json),
-  public.remove_entries(text, uuid[])
+  public.remove_entries(text, uuid[]),
+  public.save_push_subscription(text, text, json),
+  public.delete_push_subscription(text)
 to anon, authenticated;

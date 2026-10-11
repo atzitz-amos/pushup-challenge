@@ -32,6 +32,12 @@ export const SUPABASE = {
   anonKey: 'sb_publishable_tINRZ9IhGmWVPsJ3G-k8bA_O70eN1ZY',
 };
 
+// Public half of the Web Push key pair used by supabase/functions/notify-team
+// (the private half lives only in Supabase's Edge Function secrets).
+export const PUSH = {
+  publicKey: 'BNbCl0SQ1YwVN-sMkszdxMajgCnvXMlFQ4cZ2zHOeTlbjYGUhpAjSck4K0IdCIyA0FNoYr4mHojN_cKiUfwvSoE',
+};
+
 // Demo mode: open with ?demo, or from a page that sets window.PUSHUP_DEMO (the published preview).
 // The challenge then starts 9 days ago with sample data.
 export const DEMO = !!globalThis.PUSHUP_DEMO || new URLSearchParams(location.search).has('demo');

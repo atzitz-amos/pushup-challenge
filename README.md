@@ -26,6 +26,19 @@ Within a team, people are identified by their name: use the same name on every d
 
 The public key is meant to be public. The app can't read the tables directly: it goes through database functions that all need a team code, so a team's data is only reachable by people who know its code. Entries can only be removed within a day of saving them (for Undo).
 
+## Notifications
+
+When someone in your team saves push-ups, teammates get a phone notification ("Lea did 15 push-ups 💪", or "Lea finished today's 30! 🎉"). Turn them on in **Settings** or from the offer on the Team page. They need the app on https (GitHub Pages); on iPhone the app must be added to the Home Screen (iOS 16.4+). While the app is open, teammates' new push-ups also show up as a short message.
+
+### Setup (once)
+
+1. Run [`supabase/schema.sql`](supabase/schema.sql) again (it adds the `push_subscriptions` table).
+2. **Edge Functions → Deploy a new function → Via Editor**: name it `notify-team`, paste [`supabase/functions/notify-team/index.ts`](supabase/functions/notify-team/index.ts) and deploy.
+3. **Edge Functions → Secrets**: add `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and `VAPID_SUBJECT`. Their values are in `supabase/vapid-keys.local.txt` (kept out of git; delete it once copied). The public key must match `PUSH.publicKey` in [`js/config.js`](js/config.js).
+4. **Database → Webhooks → Create a new hook**: table `entries`, event **Insert**, type **Supabase Edge Functions**, function `notify-team`, and under HTTP headers click **Add auth header with service key**.
+
+Only fresh saves notify: history uploaded when someone joins a team, or saves that reach the server much later, stay quiet.
+
 ## Testing on a phone over Wi-Fi
 
 ```

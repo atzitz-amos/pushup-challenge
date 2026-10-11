@@ -219,8 +219,8 @@ function leaderRow(p, expanded, onToggle) {
 
 /* ---------- Page ---------- */
 
-// actions: { lookup(code) → {team, members} | null, create(name) → team, join(team), leave() }
-// getData(): { team, entries, members, me, status, available, inviteCode }
+// actions: { lookup(code) → {team, members} | null, create(name) → team, join(team), leave(), enablePush(), dismissPush() }
+// getData(): { team, entries, members, me, status, available, inviteCode, pushOffer }
 export function createTeamPage(root, { getData, actions }) {
   // Local UI state that survives re-renders (inputs, errors, confirmations).
   const ui = {
@@ -382,6 +382,20 @@ export function createTeamPage(root, { getData, actions }) {
       const note = el('div', 'team-card');
       note.append(el('p', null, `You were invited to the team with code ${data.inviteCode}. Leave “${data.team.name}” to join it.`));
       wrap.appendChild(note);
+    }
+
+    // Offer notifications once (until turned on or dismissed).
+    if (data.pushOffer) {
+      const offer = el('div', 'team-card th-push');
+      offer.append(el('h4', null, '🔔 Know when your team trains'),
+        el('p', null, 'Get a notification when someone in the team saves push-ups.'));
+      const row = el('div', 'team-row');
+      row.append(
+        button('team-btn ghost', 'Not now', () => { actions.dismissPush(); render(); }),
+        button('team-btn', 'Turn on', () => run(() => actions.enablePush())),
+      );
+      offer.appendChild(row);
+      wrap.appendChild(offer);
     }
 
     wrap.appendChild(hero(list));

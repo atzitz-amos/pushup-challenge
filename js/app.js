@@ -8,6 +8,7 @@ import { registerPanel, openPanel, closePanel, preparePanel, settlePanel, sync a
 import { renderCalendar } from './calendar.js';
 import { createTeamPage } from './team.js';
 import { createSettingsPage } from './settings.js';
+import { pushStatus, wantsPush, enablePush, registerPush, unregisterPush, disablePush } from './push.js';
 import { onVerticalSwipe, onHorizontalSwipe } from './gestures.js';
 
 const $ = (s) => document.querySelector(s);
@@ -505,6 +506,8 @@ let calendar = null;
 /* ---------- Sharing: sync with Supabase and the team page ---------- */
 
 let syncOk = true;
+let pushRegistered = false;
+const pushOfferDismissed = () => { try { return localStorage.getItem('pushups.notifyOffer') === 'dismissed'; } catch { return false; } };
 const ownSignature = (list) => list.map((e) => `${e.id}:${e.count}`).join('|');
 
 function teamStatus() {
@@ -535,18 +538,33 @@ const teamPage = createTeamPage(els.teamBody, {
     status: teamStatus(),
     available: store.hasTeams,
     inviteCode,
+    pushOffer: pushStatus().supported && !wantsPush() && !pushOfferDismissed(),
   }),
   actions: {
     lookup: (code) => store.lookupTeam(code),
     create: (name) => store.createTeam(name),
+    async enablePush() {
+      try {
+        await enablePush(store.team, user);
+        showToast('Notifications on 🔔', false);
+      } catch (err) {
+        if (err.code !== 'denied') throw err;
+        showToast("Notifications weren't allowed", false);
+      }
+    },
+    dismissPush() {
+      try { localStorage.setItem('pushups.notifyOffer', 'dismissed'); } catch { /* ignore */ }
+    },
     async join(team) {
       await store.joinTeam(team); // uploads your history to the team, then syncs
+      registerPush(store.team, user).catch((err) => console.warn('Notifications not registered:', err));
       inviteCode = null;
       syncOk = true;
       fx.haptic(15);
       await load(current);
     },
     async leave() {
+      await unregisterPush();
       await store.leaveTeam();
       await load(current);
     },
@@ -569,6 +587,20 @@ function refreshFromServer() {
     const ownChanged = ownSignature(await store.entries(user)) !== before;
     if (res.ok && (ownChanged || res.rulesChanged) && !today?.saving) await load(current);
     if (res.teamGone) showToast(`“${res.teamGone}” no longer exists`, false);
+    // Teammates' fresh saves while the app is open.
+    if (res.news?.length && document.visibilityState === 'visible') {
+      const byPerson = [];
+      for (const n of res.news) {
+        const p = byPerson.find((x) => x.user === n.user);
+        if (p) p.count += n.count; else byPerson.push({ user: n.user, count: n.count });
+      }
+      showToast(byPerson.map((p) => `${p.user} +${p.count}`).join(' · ') + ' 💪', false);
+      fx.haptic(8);
+    }
+    if (res.ok && !pushRegistered) {
+      pushRegistered = true; // once per visit: refreshes this phone's subscription on the server
+      registerPush(store.team, user).catch((err) => console.warn('Notifications not registered:', err));
+    }
     if (els.teamPanel.classList.contains('open')) renderTeamPanel();
     if (res.rulesChanged && els.settingsPanel.classList.contains('open')) {
       settingsPage.reset(); // someone in the team changed the rules: show the new ones
@@ -594,7 +626,20 @@ registerPanel('team', {
 });
 
 const settingsPage = createSettingsPage(els.settingsBody, {
-  getContext: () => ({ rules: store.rules, teamName: store.rulesAreShared ? store.team.name : null }),
+  getContext: () => ({
+    rules: store.rules,
+    teamName: store.rulesAreShared ? store.team.name : null,
+    push: { ...pushStatus(), enabled: wantsPush() && pushStatus().supported && Notification.permission === 'granted' },
+  }),
+  async togglePush(on) {
+    if (on) {
+      await enablePush(store.team, user);
+      showToast('Notifications on 🔔', false);
+    } else {
+      await disablePush();
+      showToast('Notifications off', false);
+    }
+  },
   async save(rules) {
     await store.saveRules(rules);
     fx.haptic(12);

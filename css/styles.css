@@ -1099,3 +1099,9 @@ button.cal-tile:active { transform: scale(.9); }
 .set-hint { margin: 0; color: var(--muted); font-size: 13px; }
 .set-hint.center { text-align: center; }
 .set-save { margin-top: 2px; }
+
+/* Notifications */
+.set-section { margin-top: 8px; }
+.set-toggle { display: flex; align-items: center; gap: 14px; width: 100%; text-align: left; }
+.set-toggle:disabled { opacity: .45; }
+.th-push { border-color: rgba(251, 191, 36, .35); background: linear-gradient(135deg, rgba(251, 191, 36, .08), var(--card)); }

@@ -1,5 +1,5 @@
 // Network-first service worker: always fresh when online, still opens offline.
-const CACHE = 'pushups-v16';
+const CACHE = 'pushups-v17';
 const SHELL = [
   './',
   'index.html',
@@ -17,6 +17,7 @@ const SHELL = [
   'js/gestures.js',
   'js/team.js',
   'js/settings.js',
+  'js/push.js',
   'manifest.webmanifest',
   'icons/icon.svg',
   'icons/icon-180.png',
@@ -55,4 +56,30 @@ self.addEventListener('fetch', (e) => {
       })
       .catch(() => caches.match(e.request, { ignoreSearch: true })),
   );
+});
+
+// Notifications from the notify-team function (a teammate saved push-ups).
+self.addEventListener('push', (e) => {
+  const data = e.data ? e.data.json() : {};
+  e.waitUntil(self.registration.showNotification(data.title || 'Pushup Challenge', {
+    body: data.body,
+    tag: data.tag,
+    renotify: !!data.tag,
+    icon: 'icons/icon-192.png',
+    data: { url: data.url || './' },
+  }));
+});
+
+// Tapping a notification opens the app on the team page (reusing an open window).
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close();
+  const url = new URL(e.notification.data?.url || './', self.registration.scope).href;
+  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
+    const open = list.find((c) => c.url.startsWith(self.registration.scope));
+    if (open) {
+      open.navigate(url).catch(() => {});
+      return open.focus();
+    }
+    return self.clients.openWindow(url);
+  }));
 });
