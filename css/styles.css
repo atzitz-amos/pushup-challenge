@@ -140,10 +140,10 @@ button:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 .today-btn.show { transform: translate(-50%, 0); opacity: 1; pointer-events: auto; }
 .today-btn.show:active { transform: translate(-50%, 0) scale(.93); }
 
-/* Pull-down hint for the calendar; follows the finger while dragging. */
+/* Swipe-up hint for the calendar; rises with the finger while dragging. */
 .pull-hint {
   position: fixed; z-index: 35;
-  left: 50%; top: calc(env(safe-area-inset-top) + 8px);
+  left: 50%; bottom: calc(env(safe-area-inset-bottom) + 16px);
   display: flex; align-items: center; gap: 8px;
   padding: 8px 16px;
   border-radius: 999px;
@@ -152,7 +152,7 @@ button:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
   -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
   font-size: 14px;
   color: var(--muted);
-  transform: translate(-50%, -60px);
+  transform: translate(-50%, 60px);
   opacity: 0;
   pointer-events: none;
   transition: transform .35s var(--ease-out), opacity .25s, color .2s, border-color .2s;
@@ -588,13 +588,11 @@ button:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
   transition: transform .45s var(--ease-out);
 }
 .panel.open { transform: none; }
-.panel.from-top { transform: translateY(-100%); }
-.panel.from-top.open { transform: none; }
 .panel.dragging { transition: none; }
 .panel-grab {
   align-self: center;
   width: 40px; height: 5px; border-radius: 3px;
-  margin-bottom: calc(env(safe-area-inset-bottom) + 10px);
+  margin: -6px 0 8px;
   background: rgba(255, 255, 255, .2);
 }
 .panel-head { display: flex; align-items: center; justify-content: space-between; padding-bottom: 12px; }
@@ -604,7 +602,7 @@ button:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
   display: flex; flex-direction: column; gap: 20px;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding-bottom: 12px; /* the grab handle below carries the safe-area inset */
+  padding-bottom: calc(env(safe-area-inset-bottom) + 24px);
   scrollbar-width: none;
 }
 .panel-body::-webkit-scrollbar { display: none; }

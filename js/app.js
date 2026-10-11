@@ -414,7 +414,7 @@ registerPanel('calendar', {
 
 /* ---------- Swipe gestures for the calendar ---------- */
 
-// Pull down on the main screen: a hint follows the finger; past the threshold,
+// Swipe up on the main screen: a hint rises with the finger; past the threshold,
 // releasing opens the calendar. The wheel and lists keep their own scrolling.
 const PULL_OPEN = 110;
 let pullArmed = false;
@@ -422,18 +422,18 @@ onVerticalSwipe(els.app, {
   canStart: (e) => !!user && els.calendarPanel.hidden && els.menu.hidden
     && !e.target.closest('.wheel, .sessions'),
   onMove(dy) {
-    const pull = Math.max(0, dy);
+    const pull = Math.max(0, -dy);
     const shift = Math.min(70, pull * 0.5);
     els.pullHint.classList.add('dragging');
     els.app.classList.add('pulling');
-    els.pullHint.style.transform = `translate(-50%, ${shift - 60}px)`;
+    els.pullHint.style.transform = `translate(-50%, ${60 - shift}px)`;
     els.pullHint.style.opacity = Math.min(1, pull / 60);
-    els.pager.style.transform = `translateY(${Math.min(40, pull * 0.2)}px)`;
+    els.pager.style.transform = `translateY(${-Math.min(40, pull * 0.2)}px)`;
     const armed = pull >= PULL_OPEN;
     if (armed !== pullArmed) {
       pullArmed = armed;
       els.pullHint.classList.toggle('armed', armed);
-      els.pullText.textContent = armed ? 'Release for calendar' : 'Pull for calendar';
+      els.pullText.textContent = armed ? 'Release for calendar' : 'Swipe up for calendar';
       if (armed) fx.haptic(10);
     }
   },
@@ -441,24 +441,24 @@ onVerticalSwipe(els.app, {
     els.pullHint.classList.remove('dragging', 'armed');
     els.app.classList.remove('pulling');
     els.pullHint.style.transform = els.pullHint.style.opacity = els.pager.style.transform = '';
-    els.pullText.textContent = 'Pull for calendar';
+    els.pullText.textContent = 'Swipe up for calendar';
     if (pullArmed && !cancelled) openPanel('calendar');
     pullArmed = false;
   },
 });
 
-// Swipe up on the open calendar to close it (horizontal swipes still change month).
+// Swipe down on the open calendar to close it (horizontal swipes still change month).
 onVerticalSwipe(els.calendarPanel, {
-  canStart: () => !els.calendarPanel.hidden,
+  canStart: () => !els.calendarPanel.hidden && els.calendarBody.scrollTop <= 0,
   onMove(dy) {
     els.calendarPanel.classList.add('dragging');
-    els.calendarPanel.style.transform = `translateY(${Math.min(0, dy) * 0.6}px)`;
+    els.calendarPanel.style.transform = `translateY(${Math.max(0, dy) * 0.6}px)`;
   },
   onEnd(cancelled) {
     const dy = parseFloat(els.calendarPanel.style.transform.replace(/[^-\d.]/g, '')) || 0;
     els.calendarPanel.classList.remove('dragging');
     els.calendarPanel.style.transform = '';
-    if (!cancelled && dy < -60) {
+    if (!cancelled && dy > 60) {
       fx.haptic(8);
       closePanel();
     }
