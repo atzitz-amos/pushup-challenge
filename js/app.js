@@ -6,7 +6,7 @@ import { createRing } from './ring.js';
 import * as fx from './effects.js';
 import { registerPanel, openPanel, closePanel, preparePanel, settlePanel, sync as syncPanels, createSheet } from './nav.js';
 import { renderCalendar } from './calendar.js';
-import { onVerticalSwipe } from './gestures.js';
+import { onVerticalSwipe, onHorizontalSwipe } from './gestures.js';
 
 const $ = (s) => document.querySelector(s);
 const { goal } = CONFIG;
@@ -20,6 +20,7 @@ const els = {
   livesIcon: $('#livesIcon'),
   livesStat: $('#livesStat'),
   pager: $('#pager'),
+  strip: $('#strip'),
   dayTpl: $('#dayTpl'),
   loggerTpl: $('#loggerTpl'),
   todayBtn: $('#todayBtn'),
@@ -220,7 +221,7 @@ function buildPages(entries) {
     built.push(el);
   }
 
-  els.pager.replaceChildren(...built);
+  els.strip.replaceChildren(...built);
   pages = built;
   if (today) renderLogger(today);
 }
@@ -355,27 +356,61 @@ async function load(index) {
 
 /* ---------- Pager ---------- */
 
+// The days sit side by side in a strip that is moved with a transform. Swipes are
+// handled here rather than by native scrolling, so one swipe always moves exactly
+// one day (native momentum could fling past a day). pos is the position in days,
+// fractional while moving.
+let pos = 0;
+let animFrame = 0;
+let animTimer = 0;
+
 // Page widths can be fractional, so measure exactly instead of using clientWidth.
 const pageWidth = () => els.pager.getBoundingClientRect().width;
+const clampIndex = (i) => Math.min(pages.length - 1, Math.max(0, i));
+const easeOut = (t) => 1 - Math.pow(1 - t, 4);
+
+function stopAnimation() {
+  cancelAnimationFrame(animFrame);
+  clearTimeout(animTimer);
+}
+
+function animateTo(target, duration) {
+  stopAnimation();
+  const from = pos;
+  const t0 = performance.now();
+  const step = (now) => {
+    const k = Math.min(1, (now - t0) / duration);
+    pos = from + (target - from) * easeOut(k);
+    updatePager();
+    if (k < 1) animFrame = requestAnimationFrame(step);
+  };
+  animFrame = requestAnimationFrame(step);
+  // Browsers pause animation frames in the background; never leave a day half-shown.
+  animTimer = setTimeout(() => {
+    stopAnimation();
+    pos = target;
+    updatePager();
+  }, duration + 60);
+}
 
 function goTo(index, smooth) {
-  const left = pages[index]?.offsetLeft ?? 0;
+  index = clampIndex(index);
   if (smooth) {
-    els.pager.scrollTo({ left, behavior: 'smooth' });
+    // Longer jumps (e.g. back to today from far away) get a little more time.
+    animateTo(index, Math.min(650, 320 + 30 * Math.abs(index - pos)));
   } else {
+    stopAnimation();
     current = index; // jumping programmatically: no haptic tick
-    els.pager.scrollLeft = left;
+    pos = index;
     updatePager();
   }
 }
 
-// Neighbouring pages shrink and fade with their distance from the center.
-let pagerRaf = 0;
+// Moves the strip; neighbouring pages shrink and fade with their distance from the center.
 function updatePager() {
-  pagerRaf = 0;
   const w = pageWidth();
   if (!w || !pages.length) return;
-  const pos = els.pager.scrollLeft / w;
+  els.strip.style.transform = `translate3d(${-pos * w}px, 0, 0)`;
   for (let i = Math.floor(pos) - 1; i <= Math.ceil(pos) + 1; i++) {
     const inner = pages[i]?.firstElementChild;
     if (!inner) continue;
@@ -384,7 +419,7 @@ function updatePager() {
     inner.style.opacity = 1 - a * 0.65;
   }
 
-  const index = Math.min(pages.length - 1, Math.max(0, Math.round(pos)));
+  const index = clampIndex(Math.round(pos));
   if (index !== current) {
     if (current !== -1) fx.haptic(4);
     current = index;
@@ -396,6 +431,34 @@ function updatePager() {
   els.todayBtn.classList.toggle('show', away);
   els.todayBtn.tabIndex = away ? 0 : -1;
 }
+
+// Swipe left/right: the strip follows the finger, then settles on the next or
+// previous day (never further) when the swipe went a fifth of the way or was a flick.
+let swipeBase = 0;
+onHorizontalSwipe(els.pager, {
+  canStart: () => pages.length > 0,
+  onStart() {
+    stopAnimation();
+    swipeBase = pos;
+  },
+  onMove(dx) {
+    let p = swipeBase - dx / pageWidth();
+    // Rubber band past the first and last day.
+    if (p < 0) p *= 0.3;
+    else if (p > pages.length - 1) p = pages.length - 1 + (p - (pages.length - 1)) * 0.3;
+    pos = p;
+    updatePager();
+  },
+  onEnd(cancelled, { dx, vx }) {
+    const from = Math.round(swipeBase);
+    let target = from;
+    if (!cancelled) {
+      if (dx < -pageWidth() * 0.2 || vx < -0.35) target = from + 1;
+      else if (dx > pageWidth() * 0.2 || vx > 0.35) target = from - 1;
+    }
+    animateTo(clampIndex(target), 300);
+  },
+});
 
 /* ---------- Toast ---------- */
 
@@ -529,9 +592,6 @@ els.soundToggle.addEventListener('click', () => {
   fx.sound('tick', 15);
   fx.haptic(6);
 });
-els.pager.addEventListener('scroll', () => {
-  if (!pagerRaf) pagerRaf = requestAnimationFrame(updatePager);
-}, { passive: true });
 els.pager.addEventListener('click', (e) => {
   const nav = e.target.closest('.nav');
   if (!nav || nav.disabled) return;
@@ -541,7 +601,14 @@ els.todayBtn.addEventListener('click', () => {
   fx.haptic(8);
   goTo(todayIndex, true);
 });
-addEventListener('resize', () => goTo(current, false));
+// Re-align only when the width changes: Android's address bar showing or hiding
+// only changes the height, and re-aligning mid-swipe used to skip a day.
+let lastWidth = innerWidth;
+addEventListener('resize', () => {
+  if (innerWidth === lastWidth) return;
+  lastWidth = innerWidth;
+  updatePager();
+});
 
 // Audio can only start after a user gesture; the first touch anywhere unlocks it.
 document.addEventListener('pointerdown', fx.unlockAudio, { once: true });

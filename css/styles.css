@@ -22,7 +22,7 @@
   --body-h: calc(var(--item-h) * 3.8 + var(--gap) + var(--save-h));
   --ease-out: cubic-bezier(.2, .8, .2, 1);
   --spring: cubic-bezier(.34, 1.56, .64, 1);
-  --snap: cubic-bezier(.2, .9, .3, 1); /* quick start, soft landing: panels and cards */
+  --snap: cubic-bezier(.32, .72, 0, 1); /* the iOS sheet curve: fast start, long gentle settle */
   color-scheme: dark;
 }
 
@@ -83,7 +83,7 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
   transform: scale(calc(1 - .07 * var(--p)));
   border-radius: calc(32px * var(--p));
   filter: brightness(calc(1 - .45 * var(--p)));
-  transition: transform .3s var(--snap), border-radius .3s var(--snap), filter .3s var(--snap);
+  transition: transform .42s var(--snap), border-radius .42s var(--snap), filter .42s var(--snap);
 }
 .app.behind { --p: 1; }
 body.panel-drag .app, body.panel-drag .panel { transition: none; }
@@ -142,7 +142,7 @@ button:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 /* "Back to today": floats at the bottom center whenever another day is shown. */
 .today-btn {
   position: fixed; z-index: 30;
-  left: 50%; bottom: calc(env(safe-area-inset-bottom) + 24px);
+  left: 50%; bottom: calc(env(safe-area-inset-bottom) + 10px);
   display: inline-flex; align-items: center; gap: 4px;
   padding: 9px 18px;
   border-radius: 999px;
@@ -169,18 +169,14 @@ button:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
   flex: 1; min-height: 0;
   display: flex;
   margin: var(--head-space) -16px 0;
-  overflow-x: auto; overflow-y: hidden;
-  scroll-snap-type: x mandatory;
-  overscroll-behavior-x: contain;
-  scrollbar-width: none;
+  overflow: hidden;
+  touch-action: pan-y; /* horizontal swipes are handled in app.js */
 }
-.pager::-webkit-scrollbar { display: none; }
+.strip { flex: 1; min-width: 0; display: flex; will-change: transform; }
 .page {
   flex: 0 0 100%; min-width: 0;
   display: flex;
   padding: 0 16px;
-  scroll-snap-align: center;
-  scroll-snap-stop: always;
 }
 .page-inner {
   flex: 1; min-width: 0;
@@ -599,11 +595,11 @@ button:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
   padding: calc(env(safe-area-inset-top) + 14px) 16px 0;
   background: linear-gradient(180deg, #0b1124, var(--bg) 40%);
   transform: translateY(100%);
-  transition: transform .3s var(--snap);
+  transition: transform .42s var(--snap);
 }
 .panel.open { transform: none; }
 /* While being dragged the calendar is a card with rounded top corners. */
-.panel { box-shadow: 0 -12px 40px rgba(0, 0, 0, .55); transition: transform .3s var(--snap), border-radius .2s; }
+.panel { box-shadow: 0 -12px 40px rgba(0, 0, 0, .55); transition: transform .42s var(--snap), border-radius .25s; }
 body.panel-drag .panel, .panel:not(.open) { border-radius: 28px 28px 0 0; }
 .panel.dragging { transition: none; }
 .panel-grab {

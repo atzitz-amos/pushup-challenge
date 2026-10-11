@@ -26,7 +26,7 @@ export function settlePanel(id) {
   const p = panels[id];
   setTimeout(() => {
     if (!isShown(p)) p.el.hidden = true;
-  }, 350);
+  }, 450);
 }
 
 async function show(p) {
