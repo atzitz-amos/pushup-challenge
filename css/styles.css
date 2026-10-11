@@ -1129,3 +1129,7 @@ button.cal-tile:active { transform: scale(.9); }
 }
 .set-lang:active { transform: scale(.96); }
 .set-lang.on { background: var(--grad); color: #04121a; border-color: transparent; }
+
+/* Name screen */
+.onboard-card .name-label { margin-top: 4px; text-align: left; font-weight: 800; font-size: 15px; }
+.onboard-card .name-note { margin: -6px 0 2px; font-size: 13px; color: var(--muted); }

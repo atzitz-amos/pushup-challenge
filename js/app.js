@@ -381,8 +381,10 @@ let pos = 0;
 let animFrame = 0;
 let animTimer = 0;
 
-// Page widths can be fractional, so measure exactly instead of using clientWidth.
-const pageWidth = () => els.pager.getBoundingClientRect().width;
+// The layout width: exact (it can be fractional, unlike clientWidth) and not affected
+// by the main screen shrinking behind an open panel (getBoundingClientRect is, which
+// made picking a day in the calendar land between two days).
+const pageWidth = () => parseFloat(getComputedStyle(els.pager).width);
 const clampIndex = (i) => Math.min(pages.length - 1, Math.max(0, i));
 const easeOut = (t) => 1 - Math.pow(1 - t, 4);
 
@@ -840,8 +842,13 @@ els.onboardForm.addEventListener('submit', async (e) => {
 // Texts outside the rebuilt screens: the page's static texts and the name screen.
 function renderStaticTexts() {
   translatePage();
-  els.onboardTitle.textContent = t('onboard.title', { goal: CONFIG.goal, christmas: endsOnChristmasEve() });
-  els.onboardRules.textContent = t('onboard.rules', { n: CONFIG.allowedMisses });
+  els.onboardTitle.textContent = t('onboard.title', { goal: CONFIG.goal });
+  els.onboardRules.textContent = t('onboard.rules', {
+    goal: CONFIG.goal,
+    n: CONFIG.allowedMisses,
+    christmas: endsOnChristmasEve(),
+    end: dateFmt({ month: 'long', day: 'numeric' }).format(parseDay(CONFIG.endDate)),
+  });
 }
 
 function showOnboarding() {
