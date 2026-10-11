@@ -6,6 +6,7 @@ import { createRing } from './ring.js';
 import * as fx from './effects.js';
 import { registerPanel, openPanel, closePanel, preparePanel, settlePanel, sync as syncPanels, createSheet } from './nav.js';
 import { renderCalendar } from './calendar.js';
+import { renderSisters } from './sisters.js';
 import { onVerticalSwipe, onHorizontalSwipe } from './gestures.js';
 
 const $ = (s) => document.querySelector(s);
@@ -42,6 +43,8 @@ const els = {
   demoReset: $('#demoReset'),
   calendarPanel: $('#panel-calendar'),
   calendarBody: $('#calendarBody'),
+  sistersPanel: $('#panel-sisters'),
+  sistersBody: $('#sistersBody'),
   app: $('.app'),
 };
 
@@ -485,6 +488,52 @@ function renderSoundToggle() {
 }
 
 let calendar = null;
+/* ---------- Sharing: sync with Supabase and the sisters page ---------- */
+
+let syncOk = true;
+const ownSignature = (list) => list.map((e) => `${e.id}:${e.count}`).join('|');
+
+function sistersStatus() {
+  if (DEMO) return 'Demo: Lea and Mia are pretend sisters.';
+  if (!store.isRemote) return 'Only you for now. Connect Supabase (see README) to see your sisters.';
+  if (!syncOk) return 'Offline · showing the last saved progress.';
+  if (!store.lastSync) return 'Loading…';
+  return `Updated ${timeFmt.format(store.lastSync)}`;
+}
+
+function renderSistersPanel() {
+  renderSisters(els.sistersBody, { entries: store.allEntries(), me: user, status: sistersStatus() });
+}
+
+// Pulls everyone's latest entries. Today's page is only rebuilt when your own
+// entries changed (e.g. you logged on another device), so the wheel isn't reset for nothing.
+let refreshing = null;
+function refreshFromServer() {
+  if (!store.isRemote || !user) return Promise.resolve();
+  refreshing ||= (async () => {
+    const before = ownSignature(await store.entries(user));
+    const res = await store.sync();
+    syncOk = res.ok;
+    if (res.ok && ownSignature(await store.entries(user)) !== before && !today?.saving) await load(current);
+    if (els.sistersPanel.classList.contains('open')) renderSistersPanel();
+  })().finally(() => {
+    refreshing = null;
+  });
+  return refreshing;
+}
+
+registerPanel('sisters', {
+  el: els.sistersPanel,
+  render: renderSistersPanel,
+  onOpen() {
+    els.app.classList.add('behind');
+    refreshFromServer();
+  },
+  onClose() {
+    els.app.classList.remove('behind');
+  },
+});
+
 registerPanel('calendar', {
   el: els.calendarPanel,
   async render() {
@@ -615,8 +664,15 @@ document.addEventListener('pointerdown', fx.unlockAudio, { once: true });
 
 // The app may stay open overnight: rebuild when a new day starts.
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible' && user && dayKey() !== loadedDay) load();
+  if (document.visibilityState !== 'visible' || !user) return;
+  if (dayKey() !== loadedDay) load();
+  refreshFromServer();
 });
+// Stay fresh while open, and catch up as soon as the connection comes back.
+setInterval(() => {
+  if (document.visibilityState === 'visible') refreshFromServer();
+}, 60000);
+addEventListener('online', () => refreshFromServer());
 
 els.onboardForm.addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -626,7 +682,8 @@ els.onboardForm.addEventListener('submit', async (e) => {
   user = name;
   els.onboard.classList.add('leaving');
   setTimeout(() => (els.onboard.hidden = true), 400);
-  load();
+  await load();
+  refreshFromServer(); // a name used before on another device brings its history along
 });
 
 function showOnboarding() {
@@ -650,7 +707,8 @@ if (DEMO) {
 renderSoundToggle();
 user = await store.getUser();
 if (user) {
-  load();
+  await load(); // instantly, from what is saved on this phone
+  refreshFromServer();
 } else {
   showOnboarding();
 }

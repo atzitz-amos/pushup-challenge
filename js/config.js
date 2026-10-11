@@ -8,6 +8,15 @@ export const CONFIG = {
 
 export const COLORS = ['#34d399', '#38bdf8', '#a78bfa', '#6ee7b7', '#818cf8'];
 
+// Shared progress, so sisters see each other. Create a free Supabase project, run
+// supabase/schema.sql in its SQL editor, then paste the project URL and the
+// "anon public" key here. That key is meant to be public: what it can do is
+// limited by the table's row-level security policies. Leave empty to stay local-only.
+export const SUPABASE = {
+  url: '',
+  anonKey: '',
+};
+
 // Demo mode: open with ?demo, or from a page that sets window.PUSHUP_DEMO (the published preview).
 // The challenge then starts 9 days ago with sample data.
 export const DEMO = !!globalThis.PUSHUP_DEMO || new URLSearchParams(location.search).has('demo');

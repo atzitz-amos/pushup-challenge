@@ -1,4 +1,4 @@
-// Sample history for demo mode, relative to today.
+// Sample history for demo mode, relative to today: yours plus two pretend sisters.
 import { dayKey } from './stats.js';
 
 // [days ago, sessions: [count, hour, minute]]
@@ -15,14 +15,35 @@ const PLAN = [
   [0, [[8, 7, 30]]],
 ];
 
+// Pretend sisters: one who never misses, one who has used both skips.
+const SISTERS = {
+  Lea: [30, 30, 30, 30, 30, 30, 30, 30, 30, 30], // index = days ago
+  Mia: [15, 30, 30, 30, 0, 30, 30, 12, 30, 30],
+};
+
+let n = 0;
+const fakeId = () => `demo-${n++}`;
+
 export function mockEntries(user, now = new Date()) {
   const entries = [];
-  for (const [ago, sessions] of PLAN) {
+  const add = (name, ago, count, h, m) => {
     const day = new Date(now.getFullYear(), now.getMonth(), now.getDate() - ago);
-    for (const [count, h, m] of sessions) {
-      const at = new Date(day.getFullYear(), day.getMonth(), day.getDate(), h, m);
-      entries.push({ user, date: dayKey(day), count, ts: Math.min(at.getTime(), now.getTime()) });
-    }
+    const at = new Date(day.getFullYear(), day.getMonth(), day.getDate(), h, m);
+    entries.push({ id: fakeId(), user: name, date: dayKey(day), count, ts: Math.min(at.getTime(), now.getTime()) });
+  };
+  for (const [ago, sessions] of PLAN) {
+    for (const [count, h, m] of sessions) add(user, ago, count, h, m);
+  }
+  for (const [name, days] of Object.entries(SISTERS)) {
+    if (name.toLowerCase() === user.trim().toLowerCase()) continue;
+    days.forEach((total, ago) => {
+      if (total >= 30) {
+        add(name, ago, 15, 7, 15);
+        add(name, ago, 15, 18, 40);
+      } else if (total > 0) {
+        add(name, ago, total, 12, 5);
+      }
+    });
   }
   return entries;
 }

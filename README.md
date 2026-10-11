@@ -2,8 +2,29 @@
 
 30 push-ups a day until Christmas, with at most two skipped days. A small phone web app: open it, add it to the home screen, scroll the wheel to today's total and save.
 
-- Swipe left and right to see past and upcoming days.
-- Yesterday can still be logged until noon.
-- Add `?demo` to the URL to try it with ten days of sample history (stored separately from real data).
+- Swipe left and right to see past and upcoming days; swipe up for the calendar.
+- The menu (your initial, top right) has the calendar, your sisters' progress and settings.
+- Add `?demo` to the URL to try it with sample history and two pretend sisters (stored separately from real data).
 
-Rules and dates live in [`js/config.js`](js/config.js). Plain HTML, CSS and JavaScript, no build step: serve the folder with any static server.
+Rules and dates live in [`js/config.js`](js/config.js). Plain HTML, CSS and JavaScript, no build step.
+
+## Sharing progress (Supabase)
+
+Without setup, each phone keeps its own data. To let everyone see each other:
+
+1. Create a free project at [supabase.com](https://supabase.com).
+2. In the project, open **SQL Editor**, paste the contents of [`supabase/schema.sql`](supabase/schema.sql) and run it.
+3. Open **Project Settings → API** and copy the **Project URL** and the **anon public** key.
+4. Paste both into `SUPABASE` in [`js/config.js`](js/config.js), then commit and push.
+
+Everyone is identified by the name they enter, so each sister should pick her own name, and use the same one on every device. Entries are saved on the phone first and uploaded in the background, so the app also works offline.
+
+The anon key is meant to be public. The table's row-level security lets anyone with the app read and add entries, and only delete entries from the last day (for Undo).
+
+## Testing on a phone over Wi-Fi
+
+```
+python dev-server.py
+```
+
+Then open `http://<your computer's IP>:5174` on the phone. This server disables caching, so a reload always shows the latest version.

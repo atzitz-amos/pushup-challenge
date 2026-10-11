@@ -1,5 +1,5 @@
 // Network-first service worker: always fresh when online, still opens offline.
-const CACHE = 'pushups-v9';
+const CACHE = 'pushups-v10';
 const SHELL = [
   './',
   'index.html',
@@ -15,6 +15,7 @@ const SHELL = [
   'js/nav.js',
   'js/calendar.js',
   'js/gestures.js',
+  'js/sisters.js',
   'manifest.webmanifest',
   'icons/icon.svg',
   'icons/icon-180.png',
@@ -34,6 +35,8 @@ self.addEventListener('activate', (e) => {
 
 self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
+  // Shared data (Supabase) is cached by the app itself; let those requests through untouched.
+  if (e.request.url.includes('/rest/v1/')) return;
   // Own files: always revalidate with the server, so an update shows up on the next open
   // instead of whenever the HTTP cache expires.
   const sameOrigin = new URL(e.request.url).origin === self.location.origin;
