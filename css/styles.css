@@ -1117,3 +1117,15 @@ button.cal-tile:active { transform: scale(.9); }
 .set-danger:active { transform: scale(.97); }
 .set-danger.armed { background: #e11d48; color: #fff; }
 .set-danger:disabled { opacity: .5; }
+
+/* Language choice */
+.set-langs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.set-lang {
+  height: 48px;
+  border-radius: 14px;
+  background: var(--card); border: 1px solid var(--stroke);
+  font-size: 16px; font-weight: 800;
+  transition: transform .15s var(--spring), background .2s;
+}
+.set-lang:active { transform: scale(.96); }
+.set-lang.on { background: var(--grad); color: #04121a; border-color: transparent; }

@@ -31,7 +31,7 @@
         <span class="stat" id="streakStat" role="img"><span class="stat-icon flame">🔥</span><b id="streak">0</b></span>
         <span class="stat" id="livesStat" role="img"><span class="stat-icon" id="livesIcon">💜</span><b id="lives">2</b></span>
       </div>
-      <button class="avatar-btn" id="menuBtn" type="button" aria-label="Open menu" aria-haspopup="dialog">
+      <button class="avatar-btn" id="menuBtn" type="button" aria-label="Open menu" data-i18n-aria="menu.open" aria-haspopup="dialog">
         <span id="avatar">?</span>
       </button>
     </header>
@@ -40,25 +40,25 @@
     <div class="pager" id="pager"><div class="strip" id="strip"></div></div>
   </main>
 
-  <button class="today-btn" id="todayBtn" type="button" tabindex="-1" aria-label="Back to today">
+  <button class="today-btn" id="todayBtn" type="button" tabindex="-1" aria-label="Back to today" data-i18n-aria="day.backToday">
     <svg class="chev-l" viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 6l-6 6 6 6"/></svg>
-    <span>Today</span>
+    <span data-i18n="day.today">Today</span>
     <svg class="chev-r" viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 6l6 6-6 6"/></svg>
   </button>
   <!-- Wheel + save button on today's page. -->
   <template id="loggerTpl">
     <section class="logger">
       <div class="wheel-card">
-        <p class="wheel-hint">How many have you done today?</p>
+        <p class="wheel-hint" data-i18n="log.hint">How many have you done today?</p>
         <div class="wheel"><div class="wheel-band" aria-hidden="true"></div></div>
       </div>
-      <button class="save" type="button" disabled><span class="save-label">Scroll to log</span></button>
+      <button class="save" type="button" disabled><span class="save-label" data-i18n="log.scroll">Scroll to log</span></button>
     </section>
 
     <section class="done" hidden>
       <div class="done-card">
         <div class="done-emoji">💪</div>
-        <h2>Day complete!</h2>
+        <h2 data-i18n="log.doneTitle">Day complete!</h2>
         <p class="done-text">See you tomorrow!</p>
       </div>
     </section>
@@ -68,12 +68,12 @@
     <section class="page">
       <div class="page-inner">
         <div class="page-head">
-          <button class="nav prev" type="button" aria-label="Previous day">‹</button>
+          <button class="nav prev" type="button" aria-label="Previous day" data-i18n-aria="day.prev">‹</button>
           <div class="page-label">
             <h2 class="page-title"></h2>
             <p class="page-sub"></p>
           </div>
-          <button class="nav next" type="button" aria-label="Next day">›</button>
+          <button class="nav next" type="button" aria-label="Next day" data-i18n-aria="day.next">›</button>
         </div>
         <div class="ring-wrap">
           <div class="ring-glow" aria-hidden="true"></div>
@@ -97,7 +97,7 @@
 
   <!-- Menu: bottom sheet opened from the avatar button. New pages get a row here. -->
   <div class="sheet-backdrop" id="menu" hidden>
-    <div class="sheet" role="dialog" aria-label="Menu">
+    <div class="sheet" role="dialog" aria-label="Menu" data-i18n-aria="menu.label">
       <div class="sheet-grab" aria-hidden="true"></div>
       <div class="sheet-who">
         <span class="avatar-lg" id="menuAvatar">?</span>
@@ -105,55 +105,55 @@
       </div>
       <button class="menu-item" type="button" data-panel="calendar">
         <span class="mi-icon">📅</span>
-        <span class="mi-text"><b>Calendar</b><small>Every day of the challenge</small></span>
+        <span class="mi-text"><b data-i18n="menu.calendar">Calendar</b><small data-i18n="menu.calendarSub">Every day of the challenge</small></span>
         <span class="chev" aria-hidden="true">›</span>
       </button>
       <button class="menu-item" type="button" data-panel="team">
         <span class="mi-icon">👥</span>
-        <span class="mi-text"><b>Team</b><small id="teamMenuSub">Create or join a team</small></span>
+        <span class="mi-text"><b data-i18n="menu.team">Team</b><small id="teamMenuSub">Create or join a team</small></span>
         <span class="chev" aria-hidden="true">›</span>
       </button>
       <button class="menu-item" type="button" data-panel="settings">
         <span class="mi-icon">⚙️</span>
-        <span class="mi-text"><b>Settings</b><small>Daily goal, skips and last day</small></span>
+        <span class="mi-text"><b data-i18n="menu.settings">Settings</b><small data-i18n="menu.settingsSub">Daily goal, skips and last day</small></span>
         <span class="chev" aria-hidden="true">›</span>
       </button>
       <button class="menu-item" type="button" id="soundToggle" role="switch" aria-checked="true">
         <span class="mi-icon" id="soundIcon">🔊</span>
-        <span class="mi-text"><b>Sounds</b><small>Ticks and chimes while logging</small></span>
+        <span class="mi-text"><b data-i18n="menu.sounds">Sounds</b><small data-i18n="menu.soundsSub">Ticks and chimes while logging</small></span>
         <span class="switch" aria-hidden="true"></span>
       </button>
       <button class="menu-item" type="button" id="demoReset" hidden>
         <span class="mi-icon">↺</span>
-        <span class="mi-text"><b>Restart demo</b><small>Start over with fresh sample data</small></span>
+        <span class="mi-text"><b data-i18n="menu.demo">Restart demo</b><small data-i18n="menu.demoSub">Start over with fresh sample data</small></span>
       </button>
     </div>
   </div>
 
   <!-- Slides up from the bottom (it is opened by swiping up); swipe down or ✕ to close. -->
-  <section class="panel" id="panel-calendar" aria-label="Calendar" hidden>
+  <section class="panel" id="panel-calendar" aria-label="Calendar" data-i18n-aria="cal.title" hidden>
     <div class="panel-grab" aria-hidden="true"></div>
     <header class="panel-head">
-      <h2>Calendar</h2>
-      <button class="icon-btn panel-close" type="button" aria-label="Close calendar">✕</button>
+      <h2 data-i18n="cal.title">Calendar</h2>
+      <button class="icon-btn panel-close" type="button" aria-label="Close calendar" data-i18n-aria="panel.closeCalendar">✕</button>
     </header>
     <div class="panel-body" id="calendarBody"></div>
   </section>
 
-  <section class="panel" id="panel-team" aria-label="Team" hidden>
+  <section class="panel" id="panel-team" aria-label="Team" data-i18n-aria="team.title" hidden>
     <div class="panel-grab" aria-hidden="true"></div>
     <header class="panel-head">
-      <h2>Team</h2>
-      <button class="icon-btn panel-close" type="button" aria-label="Close team">✕</button>
+      <h2 data-i18n="team.title">Team</h2>
+      <button class="icon-btn panel-close" type="button" aria-label="Close team" data-i18n-aria="panel.closeTeam">✕</button>
     </header>
     <div class="panel-body" id="teamBody"></div>
   </section>
 
-  <section class="panel" id="panel-settings" aria-label="Settings" hidden>
+  <section class="panel" id="panel-settings" aria-label="Settings" data-i18n-aria="set.title" hidden>
     <div class="panel-grab" aria-hidden="true"></div>
     <header class="panel-head">
-      <h2>Settings</h2>
-      <button class="icon-btn panel-close" type="button" aria-label="Close settings">✕</button>
+      <h2 data-i18n="set.title">Settings</h2>
+      <button class="icon-btn panel-close" type="button" aria-label="Close settings" data-i18n-aria="panel.closeSettings">✕</button>
     </header>
     <div class="panel-body" id="settingsBody"></div>
   </section>
@@ -171,18 +171,18 @@
 
   <div class="toast" id="toast" role="status">
     <span id="toastText"></span>
-    <button type="button" id="undo">Undo</button>
+    <button type="button" id="undo" data-i18n="undo">Undo</button>
   </div>
 
   <div class="onboard" id="onboard" hidden>
     <form class="onboard-card" id="onboardForm">
       <div class="onboard-emoji">💪</div>
       <h2 id="onboardTitle">30 a day until Christmas</h2>
-      <p>At most two skipped days. Let's go!</p>
-      <p class="name-note">Use the same name on every device to keep your progress.</p>
-      <p class="demo-note" id="demoNote" hidden>Demo: you'll start on day 10 with sample history.</p>
-      <input id="nameInput" type="text" placeholder="Your name" autocomplete="given-name" maxlength="20" required>
-      <button class="save" type="submit">Start</button>
+      <p id="onboardRules">At most two skipped days. Let's go!</p>
+      <p class="name-note" data-i18n="onboard.nameNote">Use the same name on every device to keep your progress.</p>
+      <p class="demo-note" id="demoNote" data-i18n="onboard.demo" hidden>Demo: you'll start on day 10 with sample history.</p>
+      <input id="nameInput" type="text" placeholder="Your name" data-i18n-ph="onboard.name" autocomplete="given-name" maxlength="20" required>
+      <button class="save" type="submit" data-i18n="onboard.start">Start</button>
     </form>
   </div>
 </body>

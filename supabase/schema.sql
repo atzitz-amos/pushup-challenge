@@ -61,6 +61,9 @@ create table if not exists public.push_subscriptions (
   created_at timestamptz not null default now()
 );
 
+-- Notifications are written in each phone's language.
+alter table public.push_subscriptions add column if not exists lang text not null default 'en';
+
 -- No direct table access for the app's public key: only the functions below.
 alter table public.teams enable row level security;
 alter table public.entries enable row level security;
@@ -192,20 +195,22 @@ language sql security definer set search_path = public as $$
   where team_code = upper(trim(p_code)) and lower(user_name) = lower(trim(p_name));
 $$;
 
--- Saves (or moves) this phone's notification subscription to a team.
-create or replace function public.save_push_subscription(p_code text, p_name text, p_subscription json)
+-- Saves (or moves) this phone's notification subscription to a team, with its language.
+drop function if exists public.save_push_subscription(text, text, json);
+create or replace function public.save_push_subscription(p_code text, p_name text, p_subscription json, p_lang text default 'en')
 returns void
 language plpgsql security definer set search_path = public as $$
 begin
   if not exists (select 1 from teams where code = upper(trim(p_code))) then
     raise exception 'Unknown team code';
   end if;
-  insert into push_subscriptions (endpoint, team_code, user_name, p256dh, auth)
+  insert into push_subscriptions (endpoint, team_code, user_name, p256dh, auth, lang)
   values (p_subscription ->> 'endpoint', upper(trim(p_code)), trim(p_name),
-          p_subscription -> 'keys' ->> 'p256dh', p_subscription -> 'keys' ->> 'auth')
+          p_subscription -> 'keys' ->> 'p256dh', p_subscription -> 'keys' ->> 'auth',
+          case when p_lang = 'fr' then 'fr' else 'en' end)
   on conflict (endpoint) do update
     set team_code = excluded.team_code, user_name = excluded.user_name,
-        p256dh = excluded.p256dh, auth = excluded.auth;
+        p256dh = excluded.p256dh, auth = excluded.auth, lang = excluded.lang;
 end $$;
 
 -- Stops notifications for this phone.
@@ -226,6 +231,6 @@ grant execute on function
   public.add_entries(text, json),
   public.remove_entries(text, uuid[]),
   public.reset_entries(text, text),
-  public.save_push_subscription(text, text, json),
+  public.save_push_subscription(text, text, json, text),
   public.delete_push_subscription(text)
 to anon, authenticated;

@@ -39,30 +39,40 @@ Deno.serve(async (req) => {
   if (Date.now() - Date.parse(record.created_at) > FRESH_MS) return new Response('not a fresh save');
 
   const code = encodeURIComponent(record.team_code);
-  const name = encodeURIComponent(record.user_name);
+  const userParam = encodeURIComponent(record.user_name);
   const [subs, teams, today] = await Promise.all([
-    db(`push_subscriptions?team_code=eq.${code}&select=endpoint,user_name,p256dh,auth`).then((r) => r.json()),
+    db(`push_subscriptions?team_code=eq.${code}&select=endpoint,user_name,p256dh,auth,lang`).then((r) => r.json()),
     db(`teams?code=eq.${code}&select=name,goal`).then((r) => r.json()),
-    db(`entries?team_code=eq.${code}&user_name=ilike.${name}&day=eq.${record.day}&select=count`).then((r) => r.json()),
+    db(`entries?team_code=eq.${code}&user_name=ilike.${userParam}&day=eq.${record.day}&select=count`).then((r) => r.json()),
   ]);
 
   const team = teams[0] ?? { name: 'Your team', goal: 30 };
   const total = today.reduce((sum: number, e: { count: number }) => sum + e.count, 0);
   const justFinished = total >= team.goal && total - record.count < team.goal;
-  // The title is short (Android cuts long titles); the news itself goes in the body.
-  const payload = JSON.stringify({
+  // The title is short (Android cuts long titles); the news itself goes in the body,
+  // in each phone's language.
+  const name = record.user_name;
+  const done = Math.min(total, team.goal);
+  const bodies: Record<string, string> = justFinished
+    ? {
+      en: `${name} finished all ${team.goal} push-ups today! 🎉`,
+      fr: `${name} a terminé ses ${team.goal} pompes du jour ! 🎉`,
+    }
+    : {
+      en: `${name} finished ${record.count} push-ups · ${done}/${team.goal} today`,
+      fr: `${name} a fait ${record.count} pompes · ${done}/${team.goal} aujourd'hui`,
+    };
+  const payload = (lang: string) => JSON.stringify({
     title: `💪 ${team.name}`,
-    body: justFinished
-      ? `${record.user_name} finished all ${team.goal} push-ups today! 🎉`
-      : `${record.user_name} finished ${record.count} push-ups · ${Math.min(total, team.goal)}/${team.goal} today`,
-    tag: `${record.team_code}-${record.user_name.toLowerCase()}`, // newer news from the same person replaces older
+    body: bodies[lang] ?? bodies.en,
+    tag: `${record.team_code}-${name.toLowerCase()}`, // newer news from the same person replaces older
     url: './#team',
   });
 
-  const others = subs.filter((s: { user_name: string }) => s.user_name.toLowerCase() !== record.user_name.toLowerCase());
-  await Promise.all(others.map(async (s: { endpoint: string; p256dh: string; auth: string }) => {
+  const others = subs.filter((s: { user_name: string }) => s.user_name.toLowerCase() !== name.toLowerCase());
+  await Promise.all(others.map(async (s: { endpoint: string; p256dh: string; auth: string; lang?: string }) => {
     try {
-      await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, payload, { TTL: 3600 });
+      await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, payload(s.lang ?? 'en'), { TTL: 3600 });
     } catch (err) {
       const status = (err as { statusCode?: number }).statusCode;
       if (status === 404 || status === 410) {

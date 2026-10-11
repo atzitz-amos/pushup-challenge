@@ -2,8 +2,7 @@
 // In a team they are the team's rules and changes apply to everyone.
 import { CONFIG } from './config.js';
 import { parseDay, addDays, diffDays, dayKey } from './stats.js';
-
-const longDate = new Intl.DateTimeFormat('en', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+import { t, dateFmt, LANGS } from './i18n.js';
 
 function el(tag, cls, text) {
   const e = document.createElement(tag);
@@ -42,8 +41,8 @@ function stepper({ value, min, max, unit, onChange }) {
     b.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); set(value + delta); } });
     return b;
   };
-  const minus = holdable('−', -1, 'Less');
-  const plus = holdable('+', 1, 'More');
+  const minus = holdable('−', -1, t('set.less'));
+  const plus = holdable('+', 1, t('set.more'));
   minus.disabled = value <= min;
   plus.disabled = value >= max;
   const mid = el('div', 'step-value');
@@ -52,15 +51,15 @@ function stepper({ value, min, max, unit, onChange }) {
   return { el: wrap, set };
 }
 
-// getContext(): { rules, teamName, push: { supported, reason, enabled } }
-// save(rules), togglePush(on), resetProgress(), startOver() → Promise
-export function createSettingsPage(root, { getContext, save, togglePush, resetProgress, startOver }) {
+// getContext(): { rules, teamName, push: { supported, reason, enabled }, lang }
+// save(rules), togglePush(on), resetProgress(), startOver(), setLanguage(lang) → Promise
+export function createSettingsPage(root, { getContext, save, togglePush, resetProgress, startOver, setLanguage }) {
   let draft = null;
-  let status = ''; // '', 'saving', 'saved', or an error message
+  let status = ''; // '', 'saving', 'saved', or an error key (set.errServer / set.errOther)
   let pushNote = ''; // message under the notifications switch
   let armed = null; // 'progress' | 'all': waiting for the confirming second tap
   let armTimer = 0;
-  let resetNote = '';
+  let resetNote = ''; // key of the message under the reset buttons
 
   function render() {
     const { rules, teamName } = getContext();
@@ -69,15 +68,25 @@ export function createSettingsPage(root, { getContext, save, togglePush, resetPr
     const start = parseDay(CONFIG.startDate);
 
     const wrap = el('div', 'settings');
-    wrap.appendChild(el('span', 'th-label', 'Challenge rules'));
-    wrap.appendChild(el('p', 'set-scope', teamName
-      ? `Shared with “${teamName}”: changes apply to everyone in the team.`
-      : 'Just for you. Join a team to share rules with others.'));
+    // Language (first, so it's easy to find in either language)
+    wrap.appendChild(el('span', 'th-label', t('set.language')));
+    const langs = el('div', 'set-langs');
+    for (const [code, label] of Object.entries(LANGS)) {
+      const b = el('button', `set-lang${getContext().lang === code ? ' on' : ''}`, label);
+      b.type = 'button';
+      b.setAttribute('aria-pressed', String(getContext().lang === code));
+      b.addEventListener('click', () => { if (getContext().lang !== code) setLanguage(code); });
+      langs.appendChild(b);
+    }
+    wrap.appendChild(langs);
+
+    wrap.appendChild(el('span', 'th-label set-section', t('set.rules')));
+    wrap.appendChild(el('p', 'set-scope', teamName ? t('set.shared', { team: teamName }) : t('set.personal')));
 
     // Daily goal
     const goalCard = el('section', 'set-card');
-    goalCard.appendChild(el('h4', null, 'Daily goal'));
-    const goal = stepper({ value: draft.goal, min: 1, max: 100, unit: () => 'push-ups a day', onChange: (v) => { draft.goal = v; refresh(); } });
+    goalCard.appendChild(el('h4', null, t('set.goal')));
+    const goal = stepper({ value: draft.goal, min: 1, max: 100, unit: () => t('set.goalUnit'), onChange: (v) => { draft.goal = v; refresh(); } });
     const presets = el('div', 'set-presets');
     for (const v of [10, 20, 30, 50, 100]) {
       const chip = el('button', `set-chip${draft.goal === v ? ' on' : ''}`, v);
@@ -89,28 +98,29 @@ export function createSettingsPage(root, { getContext, save, togglePush, resetPr
 
     // Skips
     const missCard = el('section', 'set-card');
-    missCard.appendChild(el('h4', null, 'Skips allowed'));
+    missCard.appendChild(el('h4', null, t('set.skips')));
     missCard.appendChild(stepper({
-      value: draft.allowedMisses, min: 0, max: 30, unit: (v) => (v === 1 ? 'day you can miss' : 'days you can miss'),
+      value: draft.allowedMisses, min: 0, max: 30, unit: (v) => t('set.skipsUnit', { n: v }),
       onChange: (v) => { draft.allowedMisses = v; refresh(); },
     }).el);
 
     // Last day
     const endCard = el('section', 'set-card');
-    endCard.appendChild(el('h4', null, 'Last day'));
+    endCard.appendChild(el('h4', null, t('set.end')));
     const dateInput = el('input', 'set-date');
     Object.assign(dateInput, { type: 'date', id: 'setEnd', value: draft.endDate, min: dayKey(addDays(start, 1)), max: dayKey(addDays(start, 365)) });
-    dateInput.setAttribute('aria-label', 'Last day of the challenge');
+    dateInput.setAttribute('aria-label', t('set.endLabel'));
     dateInput.addEventListener('change', () => {
       if (dateInput.value && dateInput.value >= dateInput.min && dateInput.value <= dateInput.max) draft.endDate = dateInput.value;
       render();
     });
     const days = diffDays(start, parseDay(draft.endDate)) + 1;
-    endCard.append(dateInput, el('p', 'set-hint', `${longDate.format(parseDay(draft.endDate))} · ${days} days in total`));
+    const endDate = dateFmt({ weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }).format(parseDay(draft.endDate));
+    endCard.append(dateInput, el('p', 'set-hint', t('set.endHint', { date: endDate, n: days })));
 
     // Save
     const saveBtn = el('button', 'team-btn set-save',
-      status === 'saving' ? 'Saving…' : status === 'saved' && !changed ? 'Saved ✓' : 'Save changes');
+      status === 'saving' ? t('set.saving') : status === 'saved' && !changed ? t('set.saved') : t('set.save'));
     saveBtn.type = 'button';
     saveBtn.disabled = !changed || status === 'saving';
     saveBtn.addEventListener('click', async () => {
@@ -122,19 +132,19 @@ export function createSettingsPage(root, { getContext, save, togglePush, resetPr
       } catch (err) {
         console.warn(err);
         status = navigator.onLine === false || err.name === 'AbortError' || err instanceof TypeError
-          ? "Couldn't reach the server, so nothing changed. Try again when you're online."
-          : 'Something went wrong, so nothing changed. Please try again.';
+          ? 'set.errServer'
+          : 'set.errOther';
       }
       render();
     });
 
     wrap.append(goalCard, missCard, endCard);
-    if (status && !['saving', 'saved'].includes(status)) wrap.appendChild(el('p', 'team-error', status));
-    wrap.append(saveBtn, el('p', 'set-hint center', 'Past days are checked again against the new rules.'));
+    if (status && !['saving', 'saved'].includes(status)) wrap.appendChild(el('p', 'team-error', t(status)));
+    wrap.append(saveBtn, el('p', 'set-hint center', t('set.recheck')));
 
     // Notifications
     const { push } = getContext();
-    wrap.appendChild(el('span', 'th-label set-section', 'Notifications'));
+    wrap.appendChild(el('span', 'th-label set-section', t('set.notifications')));
     const notifyCard = el('section', 'set-card');
     const toggle = el('button', 'set-toggle');
     toggle.type = 'button';
@@ -142,7 +152,7 @@ export function createSettingsPage(root, { getContext, save, togglePush, resetPr
     toggle.setAttribute('aria-checked', String(push.enabled));
     toggle.disabled = !push.supported;
     const text = el('span', 'mi-text');
-    text.append(el('b', null, 'Team notifications'), el('small', null, 'Get a notification when someone in your team saves push-ups.'));
+    text.append(el('b', null, t('set.notifTitle')), el('small', null, t('set.notifText')));
     toggle.append(el('span', 'mi-icon', '🔔'), text, el('span', 'switch'));
     toggle.addEventListener('click', async () => {
       toggle.disabled = true;
@@ -150,19 +160,17 @@ export function createSettingsPage(root, { getContext, save, togglePush, resetPr
         await togglePush(!push.enabled);
         pushNote = '';
       } catch (err) {
-        pushNote = err.code === 'denied'
-          ? "Notifications weren't allowed. You can allow them in your phone settings."
-          : "Couldn't change notifications. Check your connection and try again.";
+        pushNote = err.code === 'denied' ? 'set.notifDenied' : 'set.notifError';
       }
       render();
     });
     notifyCard.appendChild(toggle);
-    const note = !push.supported ? push.reason : pushNote || (push.enabled && !getContext().teamName ? "You'll get notifications once you're in a team." : '');
+    const note = !push.supported ? push.reason : pushNote ? t(pushNote) : push.enabled && !getContext().teamName ? t('set.notifNoTeam') : '';
     if (note) notifyCard.appendChild(el('p', 'set-hint', note));
     wrap.appendChild(notifyCard);
 
     // Reset (each button needs a second tap to confirm)
-    wrap.appendChild(el('span', 'th-label set-section', 'Reset'));
+    wrap.appendChild(el('span', 'th-label set-section', t('set.reset')));
     const resetCard = el('section', 'set-card');
     const danger = (key, label, confirmLabel, hint, action, done) => {
       const b = el('button', `set-danger${armed === key ? ' armed' : ''}`, armed === key ? confirmLabel : label);
@@ -184,20 +192,17 @@ export function createSettingsPage(root, { getContext, save, togglePush, resetPr
           resetNote = done;
         } catch (err) {
           console.warn(err);
-          resetNote = "Couldn't reach the server, so nothing was deleted. Try again when you're online.";
+          resetNote = 'set.resetError';
         }
         render();
       });
       resetCard.append(b, el('p', 'set-hint', hint));
     };
-    danger('progress', 'Reset my progress', 'Tap again to delete all your push-ups',
-      teamName ? `Deletes all your push-ups, on this phone and in “${teamName}”. Your name, team and settings stay.`
-        : 'Deletes all your push-ups on this phone. Your name and settings stay.',
-      resetProgress, 'Your progress was reset.');
-    danger('all', 'Start over on this phone', 'Tap again to start over',
-      'Leaves your team and forgets your name, settings and push-ups on this phone. What you saved in a team stays there.',
-      startOver, '');
-    if (resetNote) resetCard.appendChild(el('p', resetNote.startsWith("Couldn't") ? 'team-error' : 'set-hint', resetNote));
+    danger('progress', t('set.resetProgress'), t('set.resetConfirm'),
+      teamName ? t('set.resetHintTeam', { team: teamName }) : t('set.resetHint'),
+      resetProgress, 'set.resetDone');
+    danger('all', t('set.startOver'), t('set.startOverConfirm'), t('set.startOverHint'), startOver, '');
+    if (resetNote) resetCard.appendChild(el('p', resetNote === 'set.resetError' ? 'team-error' : 'set-hint', t(resetNote)));
     wrap.appendChild(resetCard);
 
     root.replaceChildren(wrap);
@@ -207,7 +212,7 @@ export function createSettingsPage(root, { getContext, save, togglePush, resetPr
       for (const chip of presets.children) chip.classList.toggle('on', Number(chip.textContent) === draft.goal);
       const now = JSON.stringify(draft) !== JSON.stringify(getContext().rules);
       saveBtn.disabled = !now || status === 'saving';
-      saveBtn.textContent = 'Save changes';
+      saveBtn.textContent = t('set.save');
     }
   }
 

@@ -10,6 +10,7 @@ import { createTeamPage } from './team.js';
 import { createSettingsPage } from './settings.js';
 import { pushStatus, wantsPush, enablePush, registerPush, unregisterPush, disablePush } from './push.js';
 import { onVerticalSwipe, onHorizontalSwipe } from './gestures.js';
+import { t, getLang, setLang, dateFmt, capitalize, translatePage } from './i18n.js';
 
 const $ = (s) => document.querySelector(s);
 // The daily goal in effect (yours, or your team's); kept in step with CONFIG by useRules().
@@ -56,6 +57,7 @@ const els = {
   settingsPanel: $('#panel-settings'),
   settingsBody: $('#settingsBody'),
   onboardTitle: $('#onboardTitle'),
+  onboardRules: $('#onboardRules'),
   app: $('.app'),
 };
 
@@ -68,9 +70,8 @@ let todayIndex = 0;
 let current = -1;
 let today = null; // logger controller for today's page
 
-const fmt = (opts) => new Intl.DateTimeFormat('en', opts);
-const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
-const timeFmt = new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' }); // phone's own 12/24h style
+// Times follow the app's language (21:10 in French, 9:10 PM in English).
+const timeFmt = { format: (t) => dateFmt({ hour: 'numeric', minute: '2-digit' }).format(t) };
 
 /* ---------- Header ---------- */
 
@@ -78,36 +79,36 @@ function renderHeader() {
   const now = new Date();
   const finish = addDays(parseDay(CONFIG.endDate), endsOnChristmasEve() ? 1 : 0);
   const toGo = diffDays(new Date(now.getFullYear(), now.getMonth(), now.getDate()), finish);
-  els.hello.textContent = `Hi, ${user}`;
+  els.hello.textContent = t('head.hello', { name: user });
   els.date.textContent = endsOnChristmasEve()
-    ? (toGo > 0 ? `${plural(toGo, 'day')} until Christmas 🎄` : 'Merry Christmas! 🎄')
-    : (toGo > 0 ? `${plural(toGo, 'day')} to go 🏁` : toGo === 0 ? 'Last day! 🏁' : 'Challenge finished 🏆');
+    ? (toGo > 0 ? t('head.untilChristmas', { n: toGo }) : t('head.christmas'))
+    : (toGo > 0 ? t('head.toGo', { n: toGo }) : toGo === 0 ? t('head.lastDay') : t('head.finished'));
 
   els.streak.textContent = stats.streak;
   els.streakStat.classList.toggle('hot', stats.streak > 0);
-  els.streakStat.setAttribute('aria-label', `${stats.streak}-day streak`);
+  els.streakStat.setAttribute('aria-label', t('head.streakLabel', { n: stats.streak }));
 
   const left = Math.max(0, stats.missesLeft);
   els.lives.textContent = left;
   els.livesIcon.textContent = left > 0 ? '💜' : '💔';
   els.livesStat.classList.toggle('danger', stats.missesLeft <= 0);
-  els.livesStat.setAttribute('aria-label', `${plural(left, 'skip')} left`);
+  els.livesStat.setAttribute('aria-label', t('head.skipsLabel', { n: left }));
 
   const initial = [...user][0]?.toUpperCase() ?? '?';
   els.avatar.textContent = els.menuAvatar.textContent = initial;
   els.menuName.textContent = user;
-  els.menuSub.textContent = `Day ${stats.dayIndex} of ${stats.totalDays} · ${stats.streak}-day streak`;
-  els.teamMenuSub.textContent = store.team ? store.team.name : 'Create or join a team';
+  els.menuSub.textContent = t('menu.sub', { day: stats.dayIndex, total: stats.totalDays, streak: stats.streak });
+  els.teamMenuSub.textContent = store.team ? store.team.name : t('menu.teamSub');
 }
 
 /* ---------- Day pages ---------- */
 
 function pageTitle(d, rel, key) {
-  if (rel === 0) return 'Today';
-  if (rel === -1) return 'Yesterday';
-  if (rel === 1) return 'Tomorrow';
-  if (key === CONFIG.endDate) return endsOnChristmasEve() ? 'Christmas Eve' : 'Final day';
-  return fmt({ weekday: 'long' }).format(d);
+  if (rel === 0) return t('day.today');
+  if (rel === -1) return t('day.yesterday');
+  if (rel === 1) return t('day.tomorrow');
+  if (key === CONFIG.endDate) return endsOnChristmasEve() ? t('day.christmasEve') : t('day.final');
+  return capitalize(dateFmt({ weekday: 'long' }).format(d));
 }
 
 function el(tag, cls, text) {
@@ -133,13 +134,13 @@ function pastSummary(dayTotal, sessions, streakLen) {
   const text = el('div');
   if (ok) {
     head.appendChild(el('span', 'achv-emoji', '🔥'));
-    text.append(el('h3', null, 'Day complete'), el('p', null, `Finished at ${timeFmt.format(finishedAt)}`));
+    text.append(el('h3', null, t('day.complete')), el('p', null, t('day.finishedAt', { time: timeFmt.format(finishedAt) })));
   } else if (dayTotal > 0) {
     head.appendChild(el('span', 'achv-emoji', '💔'));
-    text.append(el('h3', null, 'Skip used'), el('p', null, `${dayTotal} of ${goal} done`));
+    text.append(el('h3', null, t('day.skipUsed')), el('p', null, t('day.partial', { done: dayTotal, goal })));
   } else {
     head.appendChild(el('span', 'achv-emoji', '💤'));
-    text.append(el('h3', null, 'Rest day'), el('p', null, 'Nothing logged · skip used'));
+    text.append(el('h3', null, t('day.rest')), el('p', null, t('day.nothing')));
   }
   head.appendChild(text);
   card.appendChild(head);
@@ -164,10 +165,10 @@ function pastSummary(dayTotal, sessions, streakLen) {
     s.append(el('b', null, value), el('span', null, label));
     stats.appendChild(s);
   };
-  stat(sessions.length, sessions.length === 1 ? 'set' : 'sets');
-  stat(Math.max(...sessions.map((s) => s.count)), 'best set');
-  if (ok) stat(streakLen, streakLen === 1 ? 'day streak' : 'days in a row');
-  else stat(goal - dayTotal, 'short');
+  stat(sessions.length, t('day.sets', { n: sessions.length }));
+  stat(Math.max(...sessions.map((s) => s.count)), t('day.bestSet'));
+  if (ok) stat(streakLen, t('day.inARow', { n: streakLen }));
+  else stat(goal - dayTotal, t('day.short'));
   card.appendChild(stats);
   return card;
 }
@@ -179,9 +180,7 @@ function lockedCard(rel, key) {
   emoji.className = 'locked-emoji';
   emoji.textContent = key === CONFIG.endDate ? (endsOnChristmasEve() ? '🎄' : '🏁') : '🔒';
   const text = document.createElement('p');
-  text.textContent = key === CONFIG.endDate
-    ? `The final push · in ${plural(rel, 'day')}`
-    : `Unlocks in ${plural(rel, 'day')}`;
+  text.textContent = key === CONFIG.endDate ? t('day.finalPush', { n: rel }) : t('day.unlocks', { n: rel });
   card.append(emoji, text);
   return card;
 }
@@ -214,14 +213,14 @@ function buildPages(entries) {
     run = dayTotal >= goal ? run + 1 : 0;
 
     el.querySelector('.page-title').textContent = pageTitle(d, rel, key);
-    el.querySelector('.page-sub').textContent = `${fmt({ month: 'long', day: 'numeric' }).format(d)} · Day ${i + 1}/${count}`;
+    el.querySelector('.page-sub').textContent = t('day.sub', { date: dateFmt({ month: 'long', day: 'numeric' }).format(d), i: i + 1, count });
     el.querySelector('.prev').disabled = i === 0;
     el.querySelector('.next').disabled = i === count - 1;
-    el.querySelector('.of').textContent = `of ${goal}`;
+    el.querySelector('.of').textContent = t('day.of', { goal });
 
     if (rel === 0) {
       el.classList.add('today');
-      el.querySelector('.of').textContent = `of ${goal} today`;
+      el.querySelector('.of').textContent = t('day.ofToday', { goal });
       today = createLogger({ key, total: dayTotal, page: el, ring, count: countEl, body });
     } else if (rel < 0) {
       el.classList.add('past');
@@ -232,7 +231,7 @@ function buildPages(entries) {
     } else {
       el.classList.add('future');
       countEl.textContent = i + 1;
-      el.querySelector('.of').textContent = 'day';
+      el.querySelector('.of').textContent = t('day.future');
       body.appendChild(lockedCard(rel, key));
     }
     built.push(el);
@@ -289,8 +288,8 @@ function setMode(day, mode) {
   day.ring.complete(done);
   if (done) {
     day.done.querySelector('.done-text').textContent = stats.streak > 1
-      ? `${stats.streak} days in a row. See you tomorrow!`
-      : `All ${goal} done. See you tomorrow!`;
+      ? t('log.doneStreak', { n: stats.streak })
+      : t('log.doneAll', { goal });
   }
 }
 
@@ -301,7 +300,7 @@ function updateSelection(day, v) {
   day.delta.textContent = `+${delta}`;
   day.delta.classList.toggle('show', delta > 0);
   day.saveBtn.disabled = delta <= 0 || day.saving;
-  day.saveLabel.textContent = delta > 0 ? `Save ${plural(delta, 'push-up')}` : 'Scroll to log';
+  day.saveLabel.textContent = delta > 0 ? t('log.save', { n: delta }) : t('log.scroll');
 }
 
 async function save(day) {
@@ -310,7 +309,7 @@ async function save(day) {
 
   // The app may have stayed open past midnight: start the new day instead.
   if (dayKey() !== loadedDay) {
-    showToast('A new day started', false);
+    showToast(t('log.newDay'), false);
     load();
     return;
   }
@@ -346,7 +345,7 @@ async function save(day) {
     fx.bump(day.wheelEl, 'refresh');
   }
 
-  showToast(`+${delta} saved`);
+  showToast(t('log.saved', { n: delta }));
   day.saving = false;
   updateSelection(day, day.wheel.value ?? day.total);
 }
@@ -511,10 +510,10 @@ const pushOfferDismissed = () => { try { return localStorage.getItem('pushups.no
 const ownSignature = (list) => list.map((e) => `${e.id}:${e.count}`).join('|');
 
 function teamStatus() {
-  if (DEMO) return store.team?.code === 'DEMO42' ? 'Demo: Lea and Mia are pretend teammates.' : 'Demo team: only you so far.';
-  if (!syncOk) return 'Offline · showing the last saved progress.';
-  if (!store.lastSync) return 'Loading…';
-  return `Updated ${timeFmt.format(store.lastSync)}`;
+  if (DEMO) return store.team?.code === 'DEMO42' ? t('team.demoMates') : t('team.demoAlone');
+  if (!syncOk) return t('team.offline');
+  if (!store.lastSync) return t('team.loading');
+  return t('team.updated', { time: timeFmt.format(store.lastSync) });
 }
 
 // A shared invite link (…?team=CODE) opens the team page with the code filled in.
@@ -546,10 +545,10 @@ const teamPage = createTeamPage(els.teamBody, {
     async enablePush() {
       try {
         await enablePush(store.team, user);
-        showToast('Notifications on 🔔', false);
+        showToast(t('toast.notifOn'), false);
       } catch (err) {
         if (err.code !== 'denied') throw err;
-        showToast("Notifications weren't allowed", false);
+        showToast(t('toast.notifDenied'), false);
       }
     },
     dismissPush() {
@@ -586,7 +585,7 @@ function refreshFromServer() {
     syncOk = res.ok;
     const ownChanged = ownSignature(await store.entries(user)) !== before;
     if (res.ok && (ownChanged || res.rulesChanged) && !today?.saving) await load(current);
-    if (res.teamGone) showToast(`“${res.teamGone}” no longer exists`, false);
+    if (res.teamGone) showToast(t('toast.teamGone', { team: res.teamGone }), false);
     // Teammates' fresh saves while the app is open.
     if (res.news?.length && document.visibilityState === 'visible') {
       const byPerson = [];
@@ -630,12 +629,22 @@ const settingsPage = createSettingsPage(els.settingsBody, {
     rules: store.rules,
     teamName: store.rulesAreShared ? store.team.name : null,
     push: { ...pushStatus(), enabled: wantsPush() && pushStatus().supported && Notification.permission === 'granted' },
+    lang: getLang(),
   }),
+  // Switches the language right away: static texts, the day pages, and the open settings.
+  async setLanguage(lang) {
+    setLang(lang);
+    renderStaticTexts();
+    if (user) await load(current);
+    settingsPage.render();
+    // Notifications come in the phone's language: tell the server.
+    registerPush(store.team, user).catch((err) => console.warn('Notifications not updated:', err));
+  },
   async resetProgress() {
     await store.resetProgress();
     fx.haptic(15);
     await load(current);
-    showToast('Progress reset', false);
+    showToast(t('toast.progressReset'), false);
   },
   async startOver() {
     await disablePush();
@@ -649,17 +658,17 @@ const settingsPage = createSettingsPage(els.settingsBody, {
   async togglePush(on) {
     if (on) {
       await enablePush(store.team, user);
-      showToast('Notifications on 🔔', false);
+      showToast(t('toast.notifOn'), false);
     } else {
       await disablePush();
-      showToast('Notifications off', false);
+      showToast(t('toast.notifOff'), false);
     }
   },
   async save(rules) {
     await store.saveRules(rules);
     fx.haptic(12);
     await load(current);
-    showToast(store.rulesAreShared ? 'Rules updated for the team' : 'Rules updated', false);
+    showToast(store.rulesAreShared ? t('toast.rulesTeam') : t('toast.rules'), false);
   },
 });
 
@@ -828,6 +837,13 @@ els.onboardForm.addEventListener('submit', async (e) => {
   openInvite();
 });
 
+// Texts outside the rebuilt screens: the page's static texts and the name screen.
+function renderStaticTexts() {
+  translatePage();
+  els.onboardTitle.textContent = t('onboard.title', { goal: CONFIG.goal, christmas: endsOnChristmasEve() });
+  els.onboardRules.textContent = t('onboard.rules', { n: CONFIG.allowedMisses });
+}
+
 function showOnboarding() {
   els.onboard.classList.remove('leaving');
   els.onboard.hidden = false;
@@ -848,7 +864,7 @@ if (DEMO) {
 
 renderSoundToggle();
 useRules();
-els.onboardTitle.textContent = `${CONFIG.goal} a day ${endsOnChristmasEve() ? 'until Christmas' : 'until the finish'}`;
+renderStaticTexts();
 user = await store.getUser();
 if (user) {
   await load(); // instantly, from what is saved on this phone

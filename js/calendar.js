@@ -2,10 +2,7 @@
 // that fills from the bottom with that day's progress. Tapping a day calls onPick(dayKey).
 import { CONFIG, endsOnChristmasEve } from './config.js';
 import { dayKey, parseDay, diffDays } from './stats.js';
-
-const monthFmt = new Intl.DateTimeFormat('en', { month: 'long', year: 'numeric' });
-const longFmt = new Intl.DateTimeFormat('en', { weekday: 'long', month: 'long', day: 'numeric' });
-const WEEKDAYS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+import { t, dateFmt, num, capitalize, weekdayLetters } from './i18n.js';
 
 function el(tag, cls, text) {
   const e = document.createElement(tag);
@@ -30,7 +27,7 @@ function monthPage(m, { start, end, today, totals, stats }) {
   const { goal } = CONFIG;
   const page = el('div', 'cal-page');
   const wds = el('div', 'cal-wds');
-  for (const w of WEEKDAYS) wds.appendChild(el('span', null, w));
+  for (const w of weekdayLetters()) wds.appendChild(el('span', null, w));
   const grid = el('div', 'cal-grid');
   for (let i = (m.getDay() + 6) % 7; i > 0; i--) grid.appendChild(el('span'));
 
@@ -65,11 +62,11 @@ function monthPage(m, { start, end, today, totals, stats }) {
     else if (rel < 0) tile.classList.add('missed');
     if (rel === 0) tile.classList.add('today');
 
-    const state = rel > 0 ? 'upcoming'
-      : total >= goal ? 'completed'
-      : rel === 0 ? `${total} of ${goal} so far`
-      : `skipped, ${total} of ${goal}`;
-    tile.setAttribute('aria-label', `${longFmt.format(date)}: ${state}`);
+    const state = rel > 0 ? t('cal.upcoming')
+      : total >= goal ? t('cal.completed')
+      : rel === 0 ? t('cal.soFar', { total, goal })
+      : t('cal.skipped', { total, goal });
+    tile.setAttribute('aria-label', `${dateFmt({ weekday: 'long', month: 'long', day: 'numeric' }).format(date)}: ${state}`);
     grid.appendChild(tile);
   }
   page.append(wds, grid);
@@ -96,8 +93,8 @@ export function renderCalendar(root, { totals, stats, onPick }) {
   const prev = el('button', 'nav', '‹');
   const next = el('button', 'nav', '›');
   prev.type = next.type = 'button';
-  prev.setAttribute('aria-label', 'Previous month');
-  next.setAttribute('aria-label', 'Next month');
+  prev.setAttribute('aria-label', t('cal.prevMonth'));
+  next.setAttribute('aria-label', t('cal.nextMonth'));
   const title = el('h3');
   nav.append(prev, title, next);
 
@@ -110,12 +107,12 @@ export function renderCalendar(root, { totals, stats, onPick }) {
   const foot = el('div', 'cal-foot');
   const summary = el('p', 'cal-summary');
   summary.append(
-    stat(`${stats.completedDays}/${stats.dayIndex}`, 'days done'),
-    stat(stats.totalPushups.toLocaleString(), 'push-ups'),
-    stat(stats.bestStreak, 'best streak'),
+    stat(`${stats.completedDays}/${stats.dayIndex}`, t('cal.daysDone')),
+    stat(num(stats.totalPushups), t('cal.pushups')),
+    stat(stats.bestStreak, t('cal.bestStreak')),
   );
   const legend = el('div', 'cal-legend');
-  legend.append(legendItem('🔥', 'Done'), legendItem('💔', 'Skipped'), endsOnChristmasEve() ? legendItem('🎄', 'Christmas Eve') : legendItem('🏁', 'Last day'));
+  legend.append(legendItem('🔥', t('cal.legendDone')), legendItem('💔', t('cal.legendSkipped')), endsOnChristmasEve() ? legendItem('🎄', t('cal.legendChristmas')) : legendItem('🏁', t('cal.legendLast')));
   foot.append(summary, legend);
 
   root.replaceChildren(nav, strip, foot);
@@ -124,7 +121,7 @@ export function renderCalendar(root, { totals, stats, onPick }) {
   const setMonth = (i) => {
     if (i === current) return;
     current = i;
-    title.textContent = monthFmt.format(months[i]);
+    title.textContent = capitalize(dateFmt({ month: 'long', year: 'numeric' }).format(months[i]));
     prev.disabled = i === 0;
     next.disabled = i === months.length - 1;
   };

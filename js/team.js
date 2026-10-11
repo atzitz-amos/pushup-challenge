@@ -5,9 +5,7 @@ import { CONFIG } from './config.js';
 import { computeStats, totalsByDay, dayKey, addDays, parseDay } from './stats.js';
 import { sameName, normalizeCode } from './store.js';
 import * as fx from './effects.js';
-
-const weekdayFmt = new Intl.DateTimeFormat('en', { weekday: 'narrow' });
-const monthDayFmt = new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric' });
+import { t, dateFmt, num } from './i18n.js';
 const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 function el(tag, cls, text) {
@@ -62,10 +60,10 @@ function rankPeople(entries, me, members) {
 
 function badges(p) {
   const out = [];
-  if (p.done) out.push(['done', '🏁 Done']);
-  if (p.done && new Date(p.done).getHours() < 9) out.push(['early', '⚡ Early bird']);
-  if (p.stats.streak >= 7) out.push(['fire', '🔥 On fire']);
-  if (p.stats.missesLeft === CONFIG.allowedMisses && p.stats.dayIndex > 1) out.push(['clean', '💯 No skips']);
+  if (p.done) out.push(['done', t('badge.done')]);
+  if (p.done && new Date(p.done).getHours() < 9) out.push(['early', t('badge.early')]);
+  if (p.stats.streak >= 7) out.push(['fire', t('badge.fire')]);
+  if (p.stats.missesLeft === CONFIG.allowedMisses && p.stats.dayIndex > 1) out.push(['clean', t('badge.clean')]);
   return out.slice(0, 2);
 }
 
@@ -73,7 +71,7 @@ function badges(p) {
 
 // Number that counts up from 0 when the page opens.
 function countNum(value, cls = 'num') {
-  const n = el('b', cls, value.toLocaleString());
+  const n = el('b', cls, num(value));
   n.dataset.count = value;
   return n;
 }
@@ -91,14 +89,14 @@ function hero(list) {
   const allTime = list.reduce((s, p) => s + p.stats.totalPushups, 0);
 
   const card = el('section', `th-hero${done === list.length ? ' all-done' : ''}`);
-  card.appendChild(el('span', 'th-label', 'Team today'));
+  card.appendChild(el('span', 'th-label', t('team.today')));
 
   const score = el('div', 'th-score');
   score.append(countNum(done), el('span', 'th-of', `/${list.length}`));
   const side = el('div', 'th-side');
-  side.append(el('span', null, 'done today'));
+  side.append(el('span', null, t('team.doneToday')));
   const today = el('span', 'th-today');
-  today.append(countNum(pushups, 'num small'), ' push-ups');
+  today.append(countNum(pushups, 'num small'), t('team.pushups'));
   side.appendChild(today);
   score.appendChild(side);
   card.appendChild(score);
@@ -118,14 +116,14 @@ function hero(list) {
   const me = list.find((p) => p.isMe);
   const waiting = list.filter((p) => !p.done);
   let rally;
-  if (!waiting.length) rally = "Everyone's done today! 🎉";
-  else if (me && !me.done) rally = `You need ${goal - me.stats.todayTotal} more to help the team 💪`;
-  else if (waiting.length === 1) rally = `Waiting on ${waiting[0].name} · ${goal - waiting[0].stats.todayTotal} to go`;
-  else rally = `Waiting on ${waiting.length} teammates`;
+  if (!waiting.length) rally = t('team.allDone');
+  else if (me && !me.done) rally = t('team.youNeed', { n: goal - me.stats.todayTotal });
+  else if (waiting.length === 1) rally = t('team.waitingOn', { name: waiting[0].name, n: goal - waiting[0].stats.todayTotal });
+  else rally = t('team.waitingMany', { n: waiting.length });
   card.appendChild(el('p', 'th-rally', rally));
 
   const total = el('p', 'th-total');
-  total.append(countNum(allTime, 'num tiny'), ' push-ups together so far');
+  total.append(countNum(allTime, 'num tiny'), t('team.together'));
   card.appendChild(total);
   return card;
 }
@@ -163,7 +161,7 @@ function weekStrip(totals) {
     else if (i === 0) day.classList.add('today');
     else day.classList.add('missed');
     day.style.setProperty('--p', Math.min(1, total / goal));
-    day.append(el('i'), el('small', null, weekdayFmt.format(d)));
+    day.append(el('i'), el('small', null, dateFmt({ weekday: 'narrow' }).format(d).toUpperCase()));
     strip.appendChild(day);
   }
   return strip;
@@ -184,7 +182,7 @@ function leaderRow(p, expanded, onToggle) {
   const main = el('div', 'lb-main');
   const name = el('div', 'lb-name');
   name.appendChild(el('b', null, p.name));
-  if (p.isMe) name.appendChild(el('em', 'you', 'you'));
+  if (p.isMe) name.appendChild(el('em', 'you', t('team.you')));
   for (const [cls, text] of badges(p)) name.appendChild(el('span', `badge ${cls}`, text));
 
   const bar = el('div', `lb-bar${p.done ? ' full' : todayTotal ? ' going' : ''}`);
@@ -208,9 +206,9 @@ function leaderRow(p, expanded, onToggle) {
       f.append(el('b', null, value), el('span', null, label));
       facts.appendChild(f);
     };
-    fact(totalPushups.toLocaleString(), 'push-ups');
-    fact(`${completedDays}/${p.stats.dayIndex}`, 'days done');
-    fact(bestStreak, 'best streak');
+    fact(num(totalPushups), t('cal.pushups'));
+    fact(`${completedDays}/${p.stats.dayIndex}`, t('team.daysDone'));
+    fact(bestStreak, t('team.bestStreak'));
     more.append(weekStrip(p.totals), facts);
     row.appendChild(more);
   }
@@ -238,9 +236,9 @@ export function createTeamPage(root, { getData, actions }) {
       await fn();
     } catch (err) {
       console.warn(err);
-      ui.error = navigator.onLine === false || err.name === 'AbortError' || err instanceof TypeError
-        ? "Couldn't reach the server. Check your connection and try again."
-        : 'Something went wrong. Please try again.';
+      ui.error = t(navigator.onLine === false || err.name === 'AbortError' || err instanceof TypeError
+        ? 'team.errServer'
+        : 'team.errOther');
     }
     ui.busy = false;
     render();
@@ -249,7 +247,7 @@ export function createTeamPage(root, { getData, actions }) {
   async function join(code) {
     const found = await actions.lookup(code);
     if (!found) {
-      ui.error = `No team has the code ${normalizeCode(code)}. Check it and try again.`;
+      ui.error = t('team.noCode', { code: normalizeCode(code) });
       return;
     }
     const { me } = getData();
@@ -263,18 +261,17 @@ export function createTeamPage(root, { getData, actions }) {
 
   const shareTeam = (team) => {
     const url = `${location.origin}${location.pathname}?team=${team.code}`;
-    navigator.share({ title: 'Pushup Challenge', text: `Join my pushup team “${team.name}” with code ${team.code}`, url }).catch(() => {});
+    navigator.share({ title: t('app.title'), text: t('team.shareText', { team: team.name, code: team.code }), url }).catch(() => {});
   };
 
   function noTeamView(data) {
     const wrap = el('div', 'team-start');
     const intro = el('div', 'team-intro');
-    intro.append(el('div', 'team-emoji', '👥'), el('h3', null, 'Push-ups are better together'),
-      el('p', null, 'Create a team and share its code, or join a team with a code you got.'));
+    intro.append(el('div', 'team-emoji', '👥'), el('h3', null, t('team.introTitle')), el('p', null, t('team.introText')));
     wrap.appendChild(intro);
 
     if (!data.available) {
-      wrap.appendChild(el('p', 'team-error', "Sharing isn't set up for this app yet (see the README)."));
+      wrap.appendChild(el('p', 'team-error', t('team.notSetUp')));
       return wrap;
     }
 
@@ -282,13 +279,13 @@ export function createTeamPage(root, { getData, actions }) {
     if (ui.confirm) {
       const card = el('div', 'team-card');
       card.append(
-        el('h4', null, `Join “${ui.confirm.team.name}”?`),
-        el('p', null, `Someone in this team is already called ${data.me}. If that's you on another device, your progress will be combined. If not, pick another name first.`),
+        el('h4', null, t('team.confirmTitle', { team: ui.confirm.team.name })),
+        el('p', null, t('team.confirmText', { me: data.me })),
       );
       const row = el('div', 'team-row');
       row.append(
-        button('team-btn ghost', 'Cancel', () => { ui.confirm = null; render(); }),
-        button('team-btn', "Yes, that's me", () => run(async () => {
+        button('team-btn ghost', t('team.cancel'), () => { ui.confirm = null; render(); }),
+        button('team-btn', t('team.itsMe'), () => run(async () => {
           await actions.join(ui.confirm.team);
           ui.confirm = null;
           ui.code = '';
@@ -301,17 +298,17 @@ export function createTeamPage(root, { getData, actions }) {
 
     // Join with a code
     const joinCard = el('form', 'team-card');
-    joinCard.appendChild(el('h4', null, 'Join a team'));
+    joinCard.appendChild(el('h4', null, t('team.join')));
     const codeInput = el('input', 'team-input code');
     Object.assign(codeInput, { id: 'teamCode', value: ui.code, placeholder: 'CODE', maxLength: 6, autocomplete: 'off', spellcheck: false });
     codeInput.setAttribute('autocapitalize', 'characters');
-    codeInput.setAttribute('aria-label', 'Team code');
+    codeInput.setAttribute('aria-label', t('team.codeLabel'));
     codeInput.addEventListener('input', () => {
       ui.code = normalizeCode(codeInput.value).slice(0, 6);
       codeInput.value = ui.code;
       joinBtn.disabled = ui.busy || ui.code.length !== 6;
     });
-    const joinBtn = el('button', 'team-btn', ui.busy ? 'Joining…' : 'Join');
+    const joinBtn = el('button', 'team-btn', ui.busy ? t('team.joining') : t('team.joinBtn'));
     joinBtn.type = 'submit';
     joinBtn.disabled = ui.busy || ui.code.length !== 6;
     joinCard.append(codeInput, joinBtn);
@@ -322,15 +319,15 @@ export function createTeamPage(root, { getData, actions }) {
 
     // Create a team
     const createCard = el('form', 'team-card');
-    createCard.appendChild(el('h4', null, 'Create a team'));
+    createCard.appendChild(el('h4', null, t('team.create')));
     const nameInput = el('input', 'team-input');
-    Object.assign(nameInput, { id: 'teamName', value: ui.name, placeholder: 'Team name', maxLength: 30, autocomplete: 'off' });
-    nameInput.setAttribute('aria-label', 'Team name');
+    Object.assign(nameInput, { id: 'teamName', value: ui.name, placeholder: t('team.namePlaceholder'), maxLength: 30, autocomplete: 'off' });
+    nameInput.setAttribute('aria-label', t('team.namePlaceholder'));
     nameInput.addEventListener('input', () => {
       ui.name = nameInput.value;
       createBtn.disabled = ui.busy || !ui.name.trim();
     });
-    const createBtn = el('button', 'team-btn', ui.busy ? 'Creating…' : 'Create team');
+    const createBtn = el('button', 'team-btn', ui.busy ? t('team.creating') : t('team.createBtn'));
     createBtn.type = 'submit';
     createBtn.disabled = ui.busy || !ui.name.trim();
     createCard.append(nameInput, createBtn);
@@ -345,7 +342,7 @@ export function createTeamPage(root, { getData, actions }) {
     });
 
     if (ui.error) wrap.appendChild(el('p', 'team-error', ui.error));
-    wrap.append(joinCard, el('div', 'team-or', 'or'), createCard);
+    wrap.append(joinCard, el('div', 'team-or', t('team.or')), createCard);
     return wrap;
   }
 
@@ -358,8 +355,8 @@ export function createTeamPage(root, { getData, actions }) {
     head.appendChild(el('h3', null, data.team.name));
     const codeRow = el('div', 'team-code-row');
     const codeEl = el('span', 'team-code', data.team.code);
-    codeRow.append(el('span', 'team-code-label', 'Code'), codeEl);
-    codeRow.appendChild(button('team-chip', ui.copied ? 'Copied ✓' : 'Copy', async () => {
+    codeRow.append(el('span', 'team-code-label', t('team.code')), codeEl);
+    codeRow.appendChild(button('team-chip', ui.copied ? t('team.copied') : t('team.copy'), async () => {
       try {
         await navigator.clipboard.writeText(data.team.code);
       } catch {
@@ -373,26 +370,25 @@ export function createTeamPage(root, { getData, actions }) {
       render();
       setTimeout(() => { ui.copied = false; render(); }, 1800);
     }));
-    if (navigator.share) codeRow.appendChild(button('team-chip', 'Share', () => shareTeam(data.team)));
+    if (navigator.share) codeRow.appendChild(button('team-chip', t('team.share'), () => shareTeam(data.team)));
     head.append(codeRow, el('p', 'sis-status', data.status));
     wrap.appendChild(head);
 
     // Opened from an invite link for another team.
     if (data.inviteCode && data.inviteCode !== data.team.code) {
       const note = el('div', 'team-card');
-      note.append(el('p', null, `You were invited to the team with code ${data.inviteCode}. Leave “${data.team.name}” to join it.`));
+      note.append(el('p', null, t('team.invited', { code: data.inviteCode, team: data.team.name })));
       wrap.appendChild(note);
     }
 
     // Offer notifications once (until turned on or dismissed).
     if (data.pushOffer) {
       const offer = el('div', 'team-card th-push');
-      offer.append(el('h4', null, '🔔 Know when your team trains'),
-        el('p', null, 'Get a notification when someone in the team saves push-ups.'));
+      offer.append(el('h4', null, t('team.pushTitle')), el('p', null, t('team.pushText')));
       const row = el('div', 'team-row');
       row.append(
-        button('team-btn ghost', 'Not now', () => { actions.dismissPush(); render(); }),
-        button('team-btn', 'Turn on', () => run(() => actions.enablePush())),
+        button('team-btn ghost', t('team.notNow'), () => { actions.dismissPush(); render(); }),
+        button('team-btn', t('team.turnOn'), () => run(() => actions.enablePush())),
       );
       offer.appendChild(row);
       wrap.appendChild(offer);
@@ -404,14 +400,13 @@ export function createTeamPage(root, { getData, actions }) {
       wrap.appendChild(podium(list));
     } else {
       const invite = el('div', 'team-card th-invite');
-      invite.append(el('h4', null, 'Invite your crew 📣'),
-        el('p', null, `Push-ups are more fun with company. Send them the code ${data.team.code}.`));
-      if (navigator.share) invite.appendChild(button('team-btn', 'Share invite', () => shareTeam(data.team)));
+      invite.append(el('h4', null, t('team.inviteTitle')), el('p', null, t('team.inviteText', { code: data.team.code })));
+      if (navigator.share) invite.appendChild(button('team-btn', t('team.shareInvite'), () => shareTeam(data.team)));
       wrap.appendChild(invite);
     }
 
     const board = el('section', 'th-board');
-    board.appendChild(el('span', 'th-label', 'Leaderboard'));
+    board.appendChild(el('span', 'th-label', t('team.leaderboard')));
     for (const p of list) {
       const open = sameName(ui.expanded, p.name);
       board.appendChild(leaderRow(p, open, () => {
@@ -422,9 +417,9 @@ export function createTeamPage(root, { getData, actions }) {
     wrap.appendChild(board);
 
     const start = parseDay(CONFIG.startDate);
-    wrap.appendChild(el('p', 'th-since', `Challenge since ${monthDayFmt.format(start)} · ${list.length} ${list.length === 1 ? 'member' : 'members'}`));
+    wrap.appendChild(el('p', 'th-since', t('team.since', { date: dateFmt({ month: 'short', day: 'numeric' }).format(start), n: list.length })));
 
-    const leave = button('team-leave', ui.leaving ? 'Tap again to leave the team' : 'Leave team', () => {
+    const leave = button('team-leave', ui.leaving ? t('team.leaveConfirm') : t('team.leave'), () => {
       if (!ui.leaving) {
         ui.leaving = true;
         render();
@@ -455,7 +450,7 @@ export function createTeamPage(root, { getData, actions }) {
       const t0 = performance.now();
       const step = (now) => {
         const k = Math.min(1, (now - t0) / 900);
-        n.textContent = Math.round(to * (1 - Math.pow(1 - k, 3))).toLocaleString();
+        n.textContent = num(Math.round(to * (1 - Math.pow(1 - k, 3))));
         if (k < 1) requestAnimationFrame(step);
       };
       n.textContent = '0';

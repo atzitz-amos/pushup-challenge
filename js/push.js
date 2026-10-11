@@ -3,6 +3,7 @@
 // notify-team function set up in Supabase (see README).
 import { DEMO, SUPABASE, PUSH } from './config.js';
 import { rpc } from './store.js';
+import { t, getLang } from './i18n.js';
 
 const PREF = 'pushups.notify';
 const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
@@ -10,21 +11,19 @@ const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
 // { supported, reason } — reason says why notifications can't be turned on here.
 export function pushStatus() {
   if (DEMO || !SUPABASE.url || !PUSH.publicKey) {
-    return { supported: false, reason: "Notifications aren't available in this version of the app." };
+    return { supported: false, reason: t('push.unavailable') };
   }
   if (!window.isSecureContext) {
-    return { supported: false, reason: 'Open the app from its https address (GitHub Pages) to use notifications.' };
+    return { supported: false, reason: t('push.https') };
   }
   if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
     return {
       supported: false,
-      reason: isIOS
-        ? 'On iPhone, add the app to your Home Screen (Share → Add to Home Screen) and open it from there.'
-        : "This browser doesn't support notifications.",
+      reason: isIOS ? t('push.ios') : t('push.unsupported'),
     };
   }
   if (Notification.permission === 'denied') {
-    return { supported: false, reason: 'Notifications are blocked for this app. Allow them in your phone settings, then come back.' };
+    return { supported: false, reason: t('push.blocked') };
   }
   return { supported: true };
 }
@@ -64,7 +63,8 @@ export async function enablePush(team, user) {
 export async function registerPush(team, user) {
   if (!team || !wantsPush() || !pushStatus().supported || Notification.permission !== 'granted') return;
   const sub = await subscription(true);
-  await rpc('save_push_subscription', { p_code: team.code, p_name: user, p_subscription: sub.toJSON() });
+  // The language is sent too, so notifications arrive in the phone's language.
+  await rpc('save_push_subscription', { p_code: team.code, p_name: user, p_subscription: sub.toJSON(), p_lang: getLang() });
 }
 
 // Leaving a team: stop that team's news but keep the preference for the next team.
