@@ -92,37 +92,66 @@ function pageTitle(d, rel, key) {
   return fmt({ weekday: 'long' }).format(d);
 }
 
-function pastSummary(dayTotal, sessions) {
-  const wrap = document.createElement('div');
-  wrap.className = 'summary';
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text != null) e.textContent = text;
+  return e;
+}
 
-  const status = document.createElement('div');
+// A past day as an achievement card: headline, a bar showing how the day's
+// sets added up toward the goal, and a few stats.
+function pastSummary(dayTotal, sessions, streakLen) {
   const ok = dayTotal >= goal;
-  status.className = `status ${ok ? 'ok' : 'miss'}`;
-  status.textContent = ok
-    ? '🔥 Completed'
-    : dayTotal > 0 ? `💔 ${dayTotal} of ${goal} · skip used` : '💔 Skipped · skip used';
+  const card = el('div', `summary ${ok ? 'ok' : 'miss'}`);
 
-  const list = document.createElement('ul');
-  list.className = 'sessions';
-  for (const e of sessions) {
-    const li = document.createElement('li');
-    const count = document.createElement('b');
-    count.textContent = `+${e.count}`;
-    const at = document.createElement('span');
-    at.textContent = timeFmt.format(e.ts);
-    li.append(count, at);
-    list.appendChild(li);
+  // Headline
+  let finishedAt = null;
+  for (let sum = 0, i = 0; i < sessions.length && !finishedAt; i++) {
+    sum += sessions[i].count;
+    if (sum >= goal) finishedAt = sessions[i].ts;
   }
-  if (!sessions.length) {
-    const li = document.createElement('li');
-    li.className = 'empty';
-    li.textContent = 'Nothing logged this day';
-    list.appendChild(li);
+  const head = el('div', 'achv');
+  const text = el('div');
+  if (ok) {
+    head.appendChild(el('span', 'achv-emoji', '🔥'));
+    text.append(el('h3', null, 'Day complete'), el('p', null, `Finished at ${timeFmt.format(finishedAt)}`));
+  } else if (dayTotal > 0) {
+    head.appendChild(el('span', 'achv-emoji', '💔'));
+    text.append(el('h3', null, 'Skip used'), el('p', null, `${dayTotal} of ${goal} done`));
+  } else {
+    head.appendChild(el('span', 'achv-emoji', '💤'));
+    text.append(el('h3', null, 'Rest day'), el('p', null, 'Nothing logged · skip used'));
   }
+  head.appendChild(text);
+  card.appendChild(head);
+  if (!sessions.length) return card;
 
-  wrap.append(status, list);
-  return wrap;
+  // Sets stacked toward the goal
+  const bar = el('div', 'sets-bar');
+  const scale = Math.max(goal, dayTotal);
+  sessions.forEach((s, i) => {
+    const seg = el('span', 'set', s.count);
+    seg.style.flexBasis = `${(s.count / scale) * 100}%`;
+    seg.style.setProperty('--i', i % 3);
+    if (s.count / scale < 0.1) seg.classList.add('narrow'); // too thin for its number
+    bar.appendChild(seg);
+  });
+  card.appendChild(bar);
+
+  // Stats
+  const stats = el('div', 'achv-stats');
+  const stat = (value, label) => {
+    const s = el('div');
+    s.append(el('b', null, value), el('span', null, label));
+    stats.appendChild(s);
+  };
+  stat(sessions.length, sessions.length === 1 ? 'set' : 'sets');
+  stat(Math.max(...sessions.map((s) => s.count)), 'best set');
+  if (ok) stat(streakLen, streakLen === 1 ? 'day streak' : 'days in a row');
+  else stat(goal - dayTotal, 'short');
+  card.appendChild(stats);
+  return card;
 }
 
 function lockedCard(rel, key) {
@@ -153,6 +182,7 @@ function buildPages(entries) {
   todayIndex = Math.min(count - 1, Math.max(0, diffDays(start, todayDate)));
 
   const built = [];
+  let run = 0; // completed days in a row up to the current day
   for (let i = 0, d = start; i < count; i++, d = addDays(d, 1)) {
     const key = dayKey(d);
     const rel = diffDays(todayDate, d);
@@ -163,6 +193,7 @@ function buildPages(entries) {
     const body = el.querySelector('.page-body');
     const sessions = byDay[key] || [];
     const dayTotal = sessions.reduce((s, e) => s + e.count, 0);
+    run = dayTotal >= goal ? run + 1 : 0;
 
     el.querySelector('.page-title').textContent = pageTitle(d, rel, key);
     el.querySelector('.page-sub').textContent = `${fmt({ month: 'long', day: 'numeric' }).format(d)} · Day ${i + 1}/${count}`;
@@ -179,7 +210,7 @@ function buildPages(entries) {
       el.classList.toggle('completed', dayTotal >= goal);
       ring.set(dayTotal / goal);
       countEl.textContent = dayTotal;
-      body.appendChild(pastSummary(dayTotal, sessions));
+      body.appendChild(pastSummary(dayTotal, sessions, run));
     } else {
       el.classList.add('future');
       countEl.textContent = i + 1;
@@ -361,7 +392,7 @@ function updatePager() {
 
   // "Back to today" pill: keep its arrow while it fades out, so it never flips mid-animation.
   const away = index !== todayIndex;
-  if (away) els.todayBtn.textContent = index < todayIndex ? 'Today ›' : '‹ Today';
+  if (away) els.todayBtn.classList.toggle('left', index > todayIndex); // today lies to the left
   els.todayBtn.classList.toggle('show', away);
   els.todayBtn.tabIndex = away ? 0 : -1;
 }

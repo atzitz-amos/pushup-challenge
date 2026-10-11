@@ -39,7 +39,11 @@
     <div class="pager" id="pager"></div>
   </main>
 
-  <button class="today-btn" id="todayBtn" type="button" tabindex="-1">Today ›</button>
+  <button class="today-btn" id="todayBtn" type="button" tabindex="-1" aria-label="Back to today">
+    <svg class="chev-l" viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 6l-6 6 6 6"/></svg>
+    <span>Today</span>
+    <svg class="chev-r" viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 6l6 6-6 6"/></svg>
+  </button>
   <!-- Wheel + save button on today's page. -->
   <template id="loggerTpl">
     <section class="logger">

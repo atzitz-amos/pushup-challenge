@@ -156,7 +156,7 @@ export function renderCalendar(root, { totals, stats, onPick }) {
       requestAnimationFrame(() => {
         pages.forEach((page) => {
           page.querySelectorAll('button.cal-tile').forEach((tile, i) => {
-            tile.style.setProperty('--delay', `${120 + i * 14}ms`);
+            tile.style.setProperty('--delay', `${i * 5}ms`);
             tile.style.setProperty('--p', tile.dataset.p);
           });
         });
