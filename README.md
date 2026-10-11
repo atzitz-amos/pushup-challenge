@@ -35,7 +35,7 @@ When someone in your team saves push-ups, teammates get a phone notification ("L
 1. Run [`supabase/schema.sql`](supabase/schema.sql) again (it adds the `push_subscriptions` table).
 2. **Edge Functions → Deploy a new function → Via Editor**: name it `notify-team`, paste [`supabase/functions/notify-team/index.ts`](supabase/functions/notify-team/index.ts) and deploy.
 3. **Edge Functions → Secrets**: add `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and `VAPID_SUBJECT`. Their values are in `supabase/vapid-keys.local.txt` (kept out of git; delete it once copied). The public key must match `PUSH.publicKey` in [`js/config.js`](js/config.js).
-4. **Database → Webhooks → Create a new hook**: table `entries`, event **Insert**, type **Supabase Edge Functions**, function `notify-team`, and under HTTP headers click **Add auth header with service key**.
+4. **Integrations → Database Webhooks** (click **Enable webhooks** the first time) **→ Create a new hook**: table `entries`, event **Insert**, type **Supabase Edge Functions**, function `notify-team`, and under HTTP headers click **Add auth header with service key**.
 
 Only fresh saves notify: history uploaded when someone joins a team, or saves that reach the server much later, stay quiet.
 
