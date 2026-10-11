@@ -7,7 +7,7 @@
 //   team: code of the team it belongs to (null before joining one)
 //   up:   whether it is stored on the server for that team
 
-import { CONFIG, DEMO, SUPABASE } from './config.js';
+import { DEMO, SUPABASE, DEFAULT_RULES } from './config.js';
 import { mockEntries, DEMO_TEAM, DEMO_MATES } from './demo.js';
 
 const KEY = DEMO ? 'pushups.demo' : 'pushups.v1'; // demo data never touches real data
@@ -121,6 +121,12 @@ function flush() {
   return flushing;
 }
 
+// Team rules as the server sends them → the app's rules object.
+const rulesOf = (t) => (t && t.goal != null
+  ? { goal: t.goal, allowedMisses: t.allowed_misses, endDate: t.end_date }
+  : undefined);
+const asTeam = (t) => ({ code: t.code, name: t.name, rules: t.rules || rulesOf(t) });
+
 const byTime = (a, b) => a.ts - b.ts;
 const signature = (list) => list.map((e) => `${e.id}:${e.count}`).sort().join('|');
 const randomCode = () => Array.from({ length: 6 }, () => CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)]).join('');
@@ -140,6 +146,29 @@ export const store = {
     return state.team;
   },
 
+  // The rules in effect: your team's when you are in one, otherwise your own.
+  get rules() {
+    return { ...DEFAULT_RULES, ...(state.team ? state.team.rules : state.rules) };
+  },
+  get rulesAreShared() {
+    return !!state.team;
+  },
+
+  // Saves new rules: for the whole team when in one (needs the server), otherwise just yours.
+  async saveRules(rules) {
+    if (!state.team) {
+      state.rules = rules;
+    } else if (SERVER) {
+      const t = await rpc('update_team_rules', {
+        p_code: state.team.code, p_goal: rules.goal, p_allowed_misses: rules.allowedMisses, p_end_date: rules.endDate,
+      });
+      state.team.rules = rulesOf(t);
+    } else {
+      state.team.rules = rules;
+    }
+    persist();
+  },
+
   async getUser() {
     return state.user || null;
   },
@@ -148,7 +177,7 @@ export const store = {
     state.user = name;
     if (DEMO && !state.entries.length) {
       state.entries = mockEntries(name);
-      state.team = DEMO_TEAM;
+      state.team = { ...DEMO_TEAM };
     }
     persist();
   },
@@ -199,19 +228,25 @@ export const store = {
   // Finds a team by code. Returns { team, members } (members: names already in it), or null.
   async lookupTeam(code) {
     code = normalizeCode(code);
-    if (DEMO) return code === DEMO_TEAM.code ? { team: DEMO_TEAM, members: DEMO_MATES } : null;
-    const team = await rpc('find_team', { p_code: code });
-    if (!team) return null;
+    if (DEMO) return code === DEMO_TEAM.code ? { team: asTeam(DEMO_TEAM), members: DEMO_MATES } : null;
+    const found = await rpc('find_team', { p_code: code });
+    if (!found) return null;
+    const team = asTeam(found);
     const rows = await rpc('team_entries', { p_code: code });
     const members = [];
     for (const r of rows) if (!members.some((m) => sameName(m, r.user_name))) members.push(r.user_name);
     return { team, members };
   },
 
-  // Creates a team and returns it (call joinTeam with it to enter it).
+  // Creates a team, starting with your current rules, and returns it (call joinTeam with it to enter it).
   async createTeam(name) {
-    if (DEMO) return { code: randomCode(), name: name.trim() };
-    return rpc('create_team', { p_name: name });
+    const rules = this.rules;
+    if (DEMO) return { code: randomCode(), name: name.trim(), rules };
+    const t = await rpc('create_team', { p_name: name });
+    const updated = await rpc('update_team_rules', {
+      p_code: t.code, p_goal: rules.goal, p_allowed_misses: rules.allowedMisses, p_end_date: rules.endDate,
+    });
+    return asTeam(updated);
   },
 
   // Enters a team. Your entries come along: anything not yet stored in this team
@@ -220,7 +255,7 @@ export const store = {
     // What the team already has from you (e.g. you were in it before, or another device):
     // those entries are reused instead of uploaded twice.
     const existing = SERVER ? await rpc('team_entries', { p_code: team.code }) : [];
-    state.team = { code: team.code, name: team.name };
+    state.team = { code: team.code, name: team.name, rules: team.rules };
     if (!DEMO) state.entries = state.entries.filter(mine); // other teams' people go
     for (const e of state.entries) {
       if (!mine(e) || e.team === team.code) continue;
@@ -247,22 +282,31 @@ export const store = {
     persist();
   },
 
-  // Uploads anything queued, then reloads the team's entries from the server.
-  // Returns { ok, changed }; ok is false when offline or misconfigured.
+  // Uploads anything queued, then reloads the team's entries and rules from the server.
+  // Returns { ok, changed, rulesChanged }; ok is false when offline or misconfigured.
   async sync() {
     if (!this.isRemote) return { ok: true, changed: false };
     const code = state.team.code;
     try {
       await flush();
-      const rows = await rpc('team_entries', { p_code: code });
+      const [rows, info] = await Promise.all([
+        rpc('team_entries', { p_code: code }),
+        rpc('find_team', { p_code: code }),
+      ]);
       if (state.team?.code !== code) return { ok: true, changed: false }; // left meanwhile
+      const beforeRules = JSON.stringify(this.rules);
+      if (info) {
+        state.team.name = info.name;
+        state.team.rules = rulesOf(info) || state.team.rules;
+      }
+      const rulesChanged = JSON.stringify(this.rules) !== beforeRules;
       const before = signature(state.entries);
       const server = rows.map((r) => fromRow(r, code)).filter((e) => !state.removed.includes(e.id));
       const waiting = state.entries.filter((e) => mine(e) && !e.up && !server.some((s) => s.id === e.id));
       state.entries = [...server, ...waiting];
       persist();
       this.lastSync = Date.now();
-      return { ok: true, changed: signature(state.entries) !== before };
+      return { ok: true, changed: signature(state.entries) !== before, rulesChanged };
     } catch (err) {
       console.warn('Sync failed:', err);
       return { ok: false, changed: false };

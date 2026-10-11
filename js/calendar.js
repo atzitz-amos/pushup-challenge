@@ -1,6 +1,6 @@
 // Calendar panel: one month per page (swipe or use the arrows), each day a tile
 // that fills from the bottom with that day's progress. Tapping a day calls onPick(dayKey).
-import { CONFIG } from './config.js';
+import { CONFIG, endsOnChristmasEve } from './config.js';
 import { dayKey, parseDay, diffDays } from './stats.js';
 
 const monthFmt = new Intl.DateTimeFormat('en', { month: 'long', year: 'numeric' });
@@ -49,10 +49,10 @@ function monthPage(m, { start, end, today, totals, stats }) {
     tile.dataset.key = key;
     tile.dataset.p = Math.min(1, total / goal);
     // Small icon under the number: a flame for a completed day, a broken heart
-    // for a skipped one (skips are "lives"), a tree on Christmas Eve.
+    // for a skipped one (skips are "lives"), a tree (or flag) on the last day.
     const icon = total >= goal ? '🔥'
       : rel < 0 ? '💔'
-      : key === CONFIG.endDate ? '🎄'
+      : key === CONFIG.endDate ? (endsOnChristmasEve() ? '🎄' : '🏁')
       : '';
     tile.append(el('span', 'fill'), el('span', 'n', n));
     if (icon) {
@@ -115,7 +115,7 @@ export function renderCalendar(root, { totals, stats, onPick }) {
     stat(stats.bestStreak, 'best streak'),
   );
   const legend = el('div', 'cal-legend');
-  legend.append(legendItem('🔥', 'Done'), legendItem('💔', 'Skipped'), legendItem('🎄', 'Christmas Eve'));
+  legend.append(legendItem('🔥', 'Done'), legendItem('💔', 'Skipped'), endsOnChristmasEve() ? legendItem('🎄', 'Christmas Eve') : legendItem('🏁', 'Last day'));
   foot.append(summary, legend);
 
   root.replaceChildren(nav, strip, foot);

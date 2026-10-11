@@ -3,10 +3,11 @@
 30 push-ups a day until Christmas, with at most two skipped days. A small phone web app: open it, add it to the home screen, scroll the wheel to today's total and save.
 
 - Swipe left and right to see past and upcoming days; swipe up for the calendar.
-- The menu (your initial, top right) has the calendar, your team and settings.
+- The menu (your initial, top right) has the calendar, your team and the settings.
+- **Settings** change the daily goal, the skips allowed and the last day. In a team these are the team's rules: changes apply to everyone.
 - Add `?demo` to the URL to try it with sample history and a pretend team (code `DEMO42`) with two teammates, stored separately from real data.
 
-Rules and dates live in [`js/config.js`](js/config.js). Plain HTML, CSS and JavaScript, no build step.
+Default rules and dates live in [`js/config.js`](js/config.js). Plain HTML, CSS and JavaScript, no build step.
 
 ## Teams (Supabase)
 

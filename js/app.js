@@ -1,4 +1,4 @@
-import { CONFIG, DEMO } from './config.js';
+import { CONFIG, DEMO, applyRules, endsOnChristmasEve } from './config.js';
 import { store, normalizeCode } from './store.js';
 import { computeStats, dayKey, parseDay, addDays, diffDays, totalsByDay } from './stats.js';
 import { Wheel } from './wheel.js';
@@ -7,10 +7,16 @@ import * as fx from './effects.js';
 import { registerPanel, openPanel, closePanel, preparePanel, settlePanel, sync as syncPanels, createSheet } from './nav.js';
 import { renderCalendar } from './calendar.js';
 import { createTeamPage } from './team.js';
+import { createSettingsPage } from './settings.js';
 import { onVerticalSwipe, onHorizontalSwipe } from './gestures.js';
 
 const $ = (s) => document.querySelector(s);
-const { goal } = CONFIG;
+// The daily goal in effect (yours, or your team's); kept in step with CONFIG by useRules().
+let goal = CONFIG.goal;
+function useRules() {
+  applyRules(store.rules);
+  goal = CONFIG.goal;
+}
 
 const els = {
   hello: $('#hello'),
@@ -46,6 +52,9 @@ const els = {
   teamPanel: $('#panel-team'),
   teamBody: $('#teamBody'),
   teamMenuSub: $('#teamMenuSub'),
+  settingsPanel: $('#panel-settings'),
+  settingsBody: $('#settingsBody'),
+  onboardTitle: $('#onboardTitle'),
   app: $('.app'),
 };
 
@@ -66,10 +75,12 @@ const timeFmt = new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2
 
 function renderHeader() {
   const now = new Date();
-  const christmas = addDays(parseDay(CONFIG.endDate), 1);
-  const toGo = diffDays(new Date(now.getFullYear(), now.getMonth(), now.getDate()), christmas);
+  const finish = addDays(parseDay(CONFIG.endDate), endsOnChristmasEve() ? 1 : 0);
+  const toGo = diffDays(new Date(now.getFullYear(), now.getMonth(), now.getDate()), finish);
   els.hello.textContent = `Hi, ${user}`;
-  els.date.textContent = toGo > 0 ? `${plural(toGo, 'day')} until Christmas 🎄` : 'Merry Christmas! 🎄';
+  els.date.textContent = endsOnChristmasEve()
+    ? (toGo > 0 ? `${plural(toGo, 'day')} until Christmas 🎄` : 'Merry Christmas! 🎄')
+    : (toGo > 0 ? `${plural(toGo, 'day')} to go 🏁` : toGo === 0 ? 'Last day! 🏁' : 'Challenge finished 🏆');
 
   els.streak.textContent = stats.streak;
   els.streakStat.classList.toggle('hot', stats.streak > 0);
@@ -94,7 +105,7 @@ function pageTitle(d, rel, key) {
   if (rel === 0) return 'Today';
   if (rel === -1) return 'Yesterday';
   if (rel === 1) return 'Tomorrow';
-  if (key === CONFIG.endDate) return 'Christmas Eve';
+  if (key === CONFIG.endDate) return endsOnChristmasEve() ? 'Christmas Eve' : 'Final day';
   return fmt({ weekday: 'long' }).format(d);
 }
 
@@ -165,7 +176,7 @@ function lockedCard(rel, key) {
   card.className = 'locked';
   const emoji = document.createElement('div');
   emoji.className = 'locked-emoji';
-  emoji.textContent = key === CONFIG.endDate ? '🎄' : '🔒';
+  emoji.textContent = key === CONFIG.endDate ? (endsOnChristmasEve() ? '🎄' : '🏁') : '🔒';
   const text = document.createElement('p');
   text.textContent = key === CONFIG.endDate
     ? `The final push · in ${plural(rel, 'day')}`
@@ -278,7 +289,7 @@ function setMode(day, mode) {
   if (done) {
     day.done.querySelector('.done-text').textContent = stats.streak > 1
       ? `${stats.streak} days in a row. See you tomorrow!`
-      : 'All 30 done. See you tomorrow!';
+      : `All ${goal} done. See you tomorrow!`;
   }
 }
 
@@ -350,6 +361,7 @@ async function undo() {
 }
 
 async function load(index) {
+  useRules();
   const entries = await store.entries(user);
   stats = computeStats(totalsByDay(entries));
   loadedDay = dayKey();
@@ -553,8 +565,13 @@ function refreshFromServer() {
     const before = ownSignature(await store.entries(user));
     const res = await store.sync();
     syncOk = res.ok;
-    if (res.ok && ownSignature(await store.entries(user)) !== before && !today?.saving) await load(current);
+    const ownChanged = ownSignature(await store.entries(user)) !== before;
+    if (res.ok && (ownChanged || res.rulesChanged) && !today?.saving) await load(current);
     if (els.teamPanel.classList.contains('open')) renderTeamPanel();
+    if (res.rulesChanged && els.settingsPanel.classList.contains('open')) {
+      settingsPage.reset(); // someone in the team changed the rules: show the new ones
+      settingsPage.render();
+    }
   })().finally(() => {
     refreshing = null;
   });
@@ -571,6 +588,28 @@ registerPanel('team', {
   onClose() {
     els.app.classList.remove('behind');
     teamPage.reset();
+  },
+});
+
+const settingsPage = createSettingsPage(els.settingsBody, {
+  getContext: () => ({ rules: store.rules, teamName: store.rulesAreShared ? store.team.name : null }),
+  async save(rules) {
+    await store.saveRules(rules);
+    fx.haptic(12);
+    await load(current);
+    showToast(store.rulesAreShared ? 'Rules updated for the team' : 'Rules updated', false);
+  },
+});
+
+registerPanel('settings', {
+  el: els.settingsPanel,
+  render: () => settingsPage.render(),
+  onOpen() {
+    els.app.classList.add('behind');
+  },
+  onClose() {
+    els.app.classList.remove('behind');
+    settingsPage.reset();
   },
 });
 
@@ -746,6 +785,8 @@ if (DEMO) {
 }
 
 renderSoundToggle();
+useRules();
+els.onboardTitle.textContent = `${CONFIG.goal} a day ${endsOnChristmasEve() ? 'until Christmas' : 'until the finish'}`;
 user = await store.getUser();
 if (user) {
   await load(); // instantly, from what is saved on this phone

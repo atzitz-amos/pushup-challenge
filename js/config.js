@@ -6,6 +6,19 @@ export const CONFIG = {
   allowedMisses: 2,
 };
 
+// The rules above are only defaults: the settings page changes them (for you, or for
+// your whole team), and applyRules() puts the ones in effect into CONFIG.
+export const DEFAULT_RULES = { goal: CONFIG.goal, allowedMisses: CONFIG.allowedMisses, endDate: CONFIG.endDate };
+
+export function applyRules(rules) {
+  CONFIG.goal = rules.goal;
+  CONFIG.allowedMisses = rules.allowedMisses;
+  CONFIG.endDate = rules.endDate;
+}
+
+// The challenge was designed to end on Christmas Eve; other end dates get neutral wording.
+export const endsOnChristmasEve = () => CONFIG.endDate.slice(5) === '12-24';
+
 export const COLORS = ['#34d399', '#38bdf8', '#a78bfa', '#6ee7b7', '#818cf8'];
 
 // Shared progress, so everyone sees each other. Create a free Supabase project, run
