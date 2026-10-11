@@ -61,6 +61,7 @@ const els = {
   settingsBody: $('#settingsBody'),
   onboardTitle: $('#onboardTitle'),
   onboardRules: $('#onboardRules'),
+  onboardLangs: $('#onboardLangs'),
   app: $('.app'),
 };
 
@@ -939,7 +940,32 @@ function renderStaticTexts() {
 function showOnboarding() {
   els.onboard.classList.remove('leaving');
   els.onboard.hidden = false;
+  renderOnboardLangs();
 }
+
+// Language picker on the name screen, so everything after it (the tour included)
+// is in the right language from the start.
+function renderOnboardLangs() {
+  for (const b of els.onboardLangs.querySelectorAll('[data-lang]')) {
+    const on = b.dataset.lang === getLang();
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-pressed', String(on));
+  }
+}
+els.onboardLangs.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-lang]');
+  if (!b || b.dataset.lang === getLang()) return;
+  setLang(b.dataset.lang);
+  renderStaticTexts();
+  renderOnboardLangs();
+  fx.haptic(6);
+  // A little fade so the switch is noticeable.
+  for (const node of [els.onboardTitle, els.onboardRules]) {
+    node.classList.remove('lang-swap');
+    void node.offsetWidth;
+    node.classList.add('lang-swap');
+  }
+});
 
 if (DEMO) {
   els.demoReset.hidden = false;
