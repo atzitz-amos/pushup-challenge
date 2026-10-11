@@ -1,5 +1,5 @@
 // Network-first service worker: always fresh when online, still opens offline.
-const CACHE = 'pushups-v1';
+const CACHE = 'pushups-v2';
 const SHELL = [
   './',
   'index.html',
@@ -12,6 +12,8 @@ const SHELL = [
   'js/ring.js',
   'js/effects.js',
   'js/demo.js',
+  'js/nav.js',
+  'js/calendar.js',
   'manifest.webmanifest',
   'icons/icon.svg',
   'icons/icon-180.png',

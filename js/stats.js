@@ -50,6 +50,22 @@ export function computeStats(totals, now = new Date()) {
     streak++;
   }
 
+  // Totals so far, and the longest run of completed days (today and a pending
+  // yesterday don't break a run while they can still be finished).
+  let completedDays = 0;
+  let totalPushups = 0;
+  let bestStreak = 0;
+  for (let d = start, run = 0; d <= end && d <= today; d = addDays(d, 1)) {
+    const key = dayKey(d);
+    totalPushups += totals[key] || 0;
+    if (done(d)) {
+      completedDays++;
+      bestStreak = Math.max(bestStreak, ++run);
+    } else if (key !== graceKey && d < today) {
+      run = 0;
+    }
+  }
+
   return {
     goal,
     totalDays,
@@ -57,6 +73,9 @@ export function computeStats(totals, now = new Date()) {
     misses,
     missesLeft: allowedMisses - misses,
     streak,
+    bestStreak,
+    completedDays,
+    totalPushups,
     graceKey,
     todayTotal: totals[dayKey(today)] || 0,
   };

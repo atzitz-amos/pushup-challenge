@@ -4,6 +4,8 @@ import { computeStats, dayKey, parseDay, addDays, diffDays, totalsByDay } from '
 import { Wheel } from './wheel.js';
 import { createRing } from './ring.js';
 import * as fx from './effects.js';
+import { registerPanel, openPanel, closePanel, sync as syncPanels, createSheet } from './nav.js';
+import { renderCalendar } from './calendar.js';
 
 const $ = (s) => document.querySelector(s);
 const { goal } = CONFIG;
@@ -23,12 +25,21 @@ const els = {
   toast: $('#toast'),
   toastText: $('#toastText'),
   undo: $('#undo'),
-  sound: $('#sound'),
   onboard: $('#onboard'),
   onboardForm: $('#onboardForm'),
   nameInput: $('#nameInput'),
-  demoBtn: $('#demoBtn'),
   demoNote: $('#demoNote'),
+  menuBtn: $('#menuBtn'),
+  avatar: $('#avatar'),
+  menu: $('#menu'),
+  menuAvatar: $('#menuAvatar'),
+  menuName: $('#menuName'),
+  menuSub: $('#menuSub'),
+  soundToggle: $('#soundToggle'),
+  soundIcon: $('#soundIcon'),
+  demoReset: $('#demoReset'),
+  calendarPanel: $('#panel-calendar'),
+  calendarBody: $('#calendarBody'),
 };
 
 let user = null;
@@ -59,6 +70,11 @@ function renderHeader() {
   els.streak.textContent = stats.streak;
   els.streakChip.classList.toggle('hot', stats.streak > 0);
   els.day.textContent = `Day ${stats.dayIndex}/${stats.totalDays}`;
+
+  const initial = [...user][0]?.toUpperCase() ?? '?';
+  els.avatar.textContent = els.menuAvatar.textContent = initial;
+  els.menuName.textContent = user;
+  els.menuSub.textContent = `Day ${stats.dayIndex} of ${stats.totalDays} · ${stats.streak}-day streak`;
 
   els.misses.replaceChildren();
   for (let i = 0; i < CONFIG.allowedMisses; i++) {
@@ -334,6 +350,7 @@ async function load(index) {
   renderHeader();
   buildPages(entries);
   goTo(index ?? todayIndex, false);
+  syncPanels(); // opens a panel named in the URL, e.g. #calendar
 }
 
 /* ---------- Pager ---------- */
@@ -393,20 +410,60 @@ function hideToast() {
   els.toast.classList.remove('show');
 }
 
-function renderSoundButton() {
+/* ---------- Menu and panels ---------- */
+
+const menu = createSheet(els.menu);
+
+function renderSoundToggle() {
   const muted = fx.isMuted();
-  els.sound.textContent = muted ? '🔇' : '🔊';
-  els.sound.setAttribute('aria-label', muted ? 'Unmute sounds' : 'Mute sounds');
+  els.soundToggle.setAttribute('aria-checked', String(!muted));
+  els.soundIcon.textContent = muted ? '🔇' : '🔊';
 }
+
+let calendarMonth = null;
+registerPanel('calendar', {
+  el: els.calendarPanel,
+  async render() {
+    const totals = totalsByDay(await store.entries(user));
+    calendarMonth = renderCalendar(els.calendarBody, {
+      totals,
+      stats: computeStats(totals),
+      onPick(key) {
+        fx.haptic(8);
+        goTo(diffDays(parseDay(CONFIG.startDate), parseDay(key)), false);
+        closePanel();
+      },
+    });
+  },
+  onOpen() {
+    // Start at the current month, keeping the summary in view when it fits.
+    const body = els.calendarBody;
+    body.scrollTop = calendarMonth && calendarMonth.offsetTop + calendarMonth.offsetHeight > body.clientHeight
+      ? calendarMonth.offsetTop - 8
+      : 0;
+  },
+});
 
 /* ---------- Setup ---------- */
 
 els.undo.addEventListener('click', undo);
-els.sound.addEventListener('click', () => {
+els.menuBtn.addEventListener('click', () => {
+  if (!user) return;
+  fx.haptic(6);
+  menu.open();
+});
+els.menu.addEventListener('click', (e) => {
+  const item = e.target.closest('[data-panel]');
+  if (!item) return;
+  menu.close();
+  openPanel(item.dataset.panel);
+});
+els.soundToggle.addEventListener('click', () => {
   fx.setMuted(!fx.isMuted());
-  renderSoundButton();
+  renderSoundToggle();
   fx.unlockAudio();
   fx.sound('tick', 15);
+  fx.haptic(6);
 });
 els.pager.addEventListener('scroll', () => {
   if (!pagerRaf) pagerRaf = requestAnimationFrame(updatePager);
@@ -448,9 +505,10 @@ function showOnboarding() {
 }
 
 if (DEMO) {
-  els.demoBtn.hidden = false;
+  els.demoReset.hidden = false;
   els.demoNote.hidden = false;
-  els.demoBtn.addEventListener('click', async () => {
+  els.demoReset.addEventListener('click', async () => {
+    menu.close();
     await store.reset();
     user = null;
     hideToast();
@@ -459,7 +517,7 @@ if (DEMO) {
   });
 }
 
-renderSoundButton();
+renderSoundToggle();
 user = await store.getUser();
 if (user) {
   load();
