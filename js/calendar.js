@@ -14,9 +14,9 @@ function el(tag, cls, text) {
   return e;
 }
 
-function legendItem(cls, label) {
+function legendItem(icon, label) {
   const item = el('span', 'cal-legend-item');
-  item.append(el('i', `cal-swatch ${cls}`), label);
+  item.append(el('i', 'cal-legend-icon', icon), label);
   return item;
 }
 
@@ -48,18 +48,26 @@ function monthPage(m, { start, end, today, totals, stats }) {
     tile.type = 'button';
     tile.dataset.key = key;
     tile.dataset.p = Math.min(1, total / goal);
+    // Small icon under the number: a flame for a completed day, a broken heart
+    // for a skipped one (skips are "lives"), a tree on Christmas Eve.
+    const icon = total >= goal ? '🔥'
+      : rel < 0 ? '💔'
+      : key === CONFIG.endDate ? '🎄'
+      : '';
     tile.append(el('span', 'fill'), el('span', 'n', n));
+    if (icon) {
+      tile.appendChild(el('span', 'ico', icon));
+      tile.classList.add('has-ico');
+    }
 
     if (total >= goal) tile.classList.add('done');
     else if (rel > 0) tile.classList.add('future');
-    else if (key === stats.graceKey) tile.classList.add('pending');
     else if (rel < 0) tile.classList.add('missed');
     if (rel === 0) tile.classList.add('today');
-    if (key === CONFIG.endDate) tile.classList.add('xmas');
 
     const state = rel > 0 ? 'upcoming'
       : total >= goal ? 'completed'
-      : rel === 0 || key === stats.graceKey ? `${total} of ${goal} so far`
+      : rel === 0 ? `${total} of ${goal} so far`
       : `skipped, ${total} of ${goal}`;
     tile.setAttribute('aria-label', `${longFmt.format(date)}: ${state}`);
     grid.appendChild(tile);
@@ -107,8 +115,7 @@ export function renderCalendar(root, { totals, stats, onPick }) {
     stat(stats.bestStreak, 'best streak'),
   );
   const legend = el('div', 'cal-legend');
-  legend.append(legendItem('done', 'Done'), legendItem('missed', 'Skipped'), legendItem('today', 'Today'));
-  if (stats.graceKey) legend.appendChild(legendItem('pending', 'Can still log'));
+  legend.append(legendItem('🔥', 'Done'), legendItem('💔', 'Skipped'), legendItem('🎄', 'Christmas Eve'));
   foot.append(summary, legend);
 
   root.replaceChildren(nav, strip, foot);

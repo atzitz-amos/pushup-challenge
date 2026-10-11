@@ -11,7 +11,6 @@
   /* Sizes: shrink on short screens (see the max-height queries at the end). */
   --gap: clamp(8px, 1.8dvh, 16px);
   --hello: 28px;
-  --chip-h: 38px;
   --nav: 40px;
   --ring: min(66vw, 31dvh, 280px);
   --count: clamp(56px, 11dvh, 84px);
@@ -99,61 +98,46 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
   background: rgba(167, 139, 250, .12); color: var(--purple); font-size: 14px;
 }
 
-/* ---------- Chips ---------- */
-.chips { display: flex; gap: 8px; }
-.chip {
-  flex: 1;
-  display: flex; align-items: center; justify-content: center; gap: 6px;
-  height: var(--chip-h); padding: 0 10px;
-  border-radius: 999px;
-  background: var(--card); border: 1px solid var(--stroke);
-  font-size: 13px; color: var(--muted); white-space: nowrap;
+/* ---------- Header stats: streak and skips left ---------- */
+.top { gap: 12px; }
+.top-text { flex: 1; min-width: 0; }
+.top-stats { display: flex; align-items: center; gap: 12px; align-self: center; }
+.stat {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 18px; font-weight: 800; font-variant-numeric: tabular-nums;
 }
-.chip b { color: var(--text); font-size: 15px; font-variant-numeric: tabular-nums; }
-.chip .flame { filter: grayscale(1) opacity(.5); transition: filter .4s; }
-.chip.hot .flame { filter: none; animation: flicker 1.6s ease-in-out infinite; display: inline-block; transform-origin: 50% 90%; }
+.stat-icon { font-size: 18px; display: inline-block; transform-origin: 50% 90%; }
+.stat .flame { filter: grayscale(1) opacity(.45); transition: filter .4s; }
+.stat.hot .flame { filter: none; animation: flicker 1.6s ease-in-out infinite; }
 @keyframes flicker {
   0%, 100% { transform: scale(1) rotate(-3deg); }
   50% { transform: scale(1.12) rotate(3deg); }
 }
-.chip.flare { animation: flare .9s var(--spring); }
+.stat.danger b { color: #fca5a5; }
+.stat.flare { animation: flare .9s var(--spring); }
 @keyframes flare {
   0% { transform: scale(1); }
-  35% { transform: scale(1.18); box-shadow: 0 0 24px rgba(52, 211, 153, .6); border-color: var(--green); }
+  35% { transform: scale(1.35); }
   100% { transform: scale(1); }
 }
-.dots { display: inline-flex; gap: 4px; }
-.dots i { width: 9px; height: 9px; border-radius: 50%; border: 1.5px solid var(--muted); }
-.dots i.on { background: var(--grad); border-color: transparent; box-shadow: 0 0 8px rgba(56, 189, 248, .6); }
-.chip.danger { border-color: rgba(248, 113, 113, .5); color: #fca5a5; }
-
-/* Day chip: crossfades into a "back to today" button when another day is shown. */
-.day-chip {
-  position: relative;
-  overflow: hidden;
-  cursor: default;
-  transition: transform .25s var(--spring), border-color .3s, box-shadow .3s;
-}
-.day-chip::before {
-  content: "";
-  position: absolute; inset: 0;
-  background: var(--grad);
-  opacity: 0;
-  transition: opacity .3s;
-}
-.day-chip b, .day-chip .to-today { position: relative; transition: opacity .25s, transform .35s var(--spring); }
-.day-chip .to-today {
-  position: absolute; inset: 0;
-  display: flex; align-items: center; justify-content: center;
-  font-weight: 800; color: #04121a;
-  opacity: 0; transform: translateY(10px);
-}
-.day-chip.away { cursor: pointer; border-color: transparent; box-shadow: 0 6px 20px -6px rgba(56, 189, 248, .6); }
-.day-chip.away::before { opacity: 1; }
-.day-chip.away b { opacity: 0; transform: translateY(-10px); }
-.day-chip.away .to-today { opacity: 1; transform: none; }
-.day-chip.away:active { transform: scale(.93); }
 button:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+
+/* "Back to today": floats at the bottom center whenever another day is shown. */
+.today-btn {
+  position: fixed; z-index: 30;
+  left: 50%; bottom: calc(env(safe-area-inset-bottom) + 24px);
+  padding: 10px 20px;
+  border-radius: 999px;
+  font-weight: 800; color: #04121a;
+  background: var(--grad);
+  box-shadow: 0 10px 30px -8px rgba(56, 189, 248, .6);
+  transform: translate(-50%, 16px);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform .35s var(--ease-out), opacity .25s;
+}
+.today-btn.show { transform: translate(-50%, 0); opacity: 1; pointer-events: auto; }
+.today-btn.show:active { transform: translate(-50%, 0) scale(.93); }
 
 /* ---------- Day pager ---------- */
 .defs { position: absolute; width: 0; height: 0; }
@@ -230,30 +214,6 @@ button:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 .sessions b { font-size: 18px; color: var(--blue); font-variant-numeric: tabular-nums; }
 .sessions span { color: var(--muted); font-variant-numeric: tabular-nums; }
 .sessions li.empty { justify-content: center; color: var(--muted); border: 0; }
-.sessions em {
-  margin-right: 8px; padding: 2px 8px;
-  border-radius: 999px;
-  font-style: normal; font-size: 12px;
-  background: rgba(167, 139, 250, .15); color: var(--purple);
-}
-
-/* Yesterday, still loggable until noon */
-.page.late .page-title { color: var(--purple); }
-.page.late .wheel-hint { color: var(--purple); font-weight: 600; }
-.page.late .wheel-card { border-color: rgba(167, 139, 250, .35); }
-.nav.alert { position: relative; color: var(--purple); border-color: rgba(167, 139, 250, .5); }
-.nav.alert::after {
-  content: "";
-  position: absolute; top: 2px; right: 2px;
-  width: 10px; height: 10px; border-radius: 50%;
-  background: var(--purple);
-  box-shadow: 0 0 0 0 rgba(167, 139, 250, .7);
-  animation: ping 1.6s ease-out infinite;
-}
-@keyframes ping {
-  0% { box-shadow: 0 0 0 0 rgba(167, 139, 250, .7); }
-  100% { box-shadow: 0 0 0 10px rgba(167, 139, 250, 0); }
-}
 
 /* Upcoming days */
 .page.future .ring-wrap { opacity: .4; }
@@ -656,35 +616,35 @@ button.cal-tile:active { transform: scale(.9); }
   transition: height .7s var(--ease-out) var(--delay, 0ms);
 }
 .cal-tile .n { position: relative; }
+/* Icon under the number; the number moves up a little to make room. */
+.cal-tile .ico {
+  position: absolute; bottom: 3px; left: 0; right: 0;
+  text-align: center;
+  font-size: 11px; line-height: 1;
+}
+.cal-tile.has-ico .n { transform: translateY(-5px); }
+.cal-tile.missed .ico { opacity: .75; }
 
 .cal-tile.done { border-color: rgba(52, 211, 153, .28); }
 .cal-tile.done .fill { background: linear-gradient(180deg, rgba(52, 211, 153, .34), rgba(56, 189, 248, .26)); }
 .cal-tile.missed { color: #d9a3ae; border-color: rgba(244, 114, 182, .16); }
 .cal-tile.missed .fill { background: rgba(244, 114, 182, .14); }
-.cal-tile.pending { color: #cbbcfd; border-color: rgba(167, 139, 250, .45); }
-.cal-tile.pending .fill { background: rgba(167, 139, 250, .2); }
 .cal-tile.today { border: 1.5px solid rgba(56, 189, 248, .65); }
 .cal-tile.future { background: transparent; color: rgba(138, 147, 178, .7); }
 .cal-tile.out { visibility: hidden; }
-.cal-tile.xmas::after { content: "🎄"; position: absolute; top: 2px; right: 3px; font-size: 10px; }
 
 .cal-foot { display: flex; flex-direction: column; gap: 10px; padding-top: 4px; }
 .cal-summary { margin: 0; display: flex; flex-wrap: wrap; gap: 4px 16px; color: var(--muted); font-size: 14px; }
 .cal-summary b { color: var(--text); font-variant-numeric: tabular-nums; }
 .cal-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; color: var(--muted); font-size: 12px; }
 .cal-legend-item { display: inline-flex; align-items: center; gap: 6px; }
-.cal-swatch { width: 12px; height: 12px; border-radius: 4px; border: 1px solid rgba(255, 255, 255, .1); }
-.cal-swatch.done { background: linear-gradient(180deg, rgba(52, 211, 153, .5), rgba(56, 189, 248, .4)); border-color: rgba(52, 211, 153, .3); }
-.cal-swatch.missed { background: rgba(244, 114, 182, .2); border-color: rgba(244, 114, 182, .2); }
-.cal-swatch.today { border: 1.5px solid rgba(56, 189, 248, .65); }
-.cal-swatch.pending { background: rgba(167, 139, 250, .25); border-color: rgba(167, 139, 250, .45); }
+.cal-legend-icon { font-style: normal; font-size: 13px; }
 
 /* ---------- Short screens (small phones, browser bars, in-app viewers) ---------- */
 @media (max-height: 720px) {
   :root {
     --gap: 8px;
     --hello: 24px;
-    --chip-h: 34px;
     --nav: 36px;
     --ring: min(58vw, 27dvh, 240px);
     --count: clamp(44px, 9dvh, 64px);
@@ -704,7 +664,6 @@ button.cal-tile:active { transform: scale(.9); }
 @media (max-height: 600px) {
   :root {
     --hello: 21px;
-    --chip-h: 30px;
     --nav: 32px;
     --ring: min(52vw, 28dvh, 200px);
     --count: 40px;
@@ -714,8 +673,6 @@ button.cal-tile:active { transform: scale(.9); }
   }
   .date, .wheel-hint, .ring-center .of { display: none; }
   .ring circle { stroke-width: 12; }
-  .chip { font-size: 12px; }
-  .chip b { font-size: 13px; }
   .done-card { padding: 16px; }
   .done-emoji { font-size: 36px; }
   .done-card h2 { font-size: 24px; }

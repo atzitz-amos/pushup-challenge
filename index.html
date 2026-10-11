@@ -22,33 +22,30 @@
 
   <main class="app">
     <header class="top">
-      <div>
+      <div class="top-text">
         <h1 class="hello" id="hello">Hi!</h1>
         <p class="date" id="date"></p>
+      </div>
+      <!-- Streak and skips left ("lives"), right next to the menu button. -->
+      <div class="top-stats">
+        <span class="stat" id="streakStat" role="img"><span class="stat-icon flame">🔥</span><b id="streak">0</b></span>
+        <span class="stat" id="livesStat" role="img"><span class="stat-icon" id="livesIcon">💜</span><b id="lives">2</b></span>
       </div>
       <button class="avatar-btn" id="menuBtn" type="button" aria-label="Open menu" aria-haspopup="dialog">
         <span id="avatar">?</span>
       </button>
     </header>
 
-    <section class="chips">
-      <div class="chip" id="streakChip"><span class="flame">🔥</span><b id="streak">0</b><span>streak</span></div>
-      <!-- Shows the day number; turns into a "back to today" button on other days. -->
-      <button class="chip day-chip" id="dayChip" type="button" tabindex="-1">
-        <b id="day">Day 1</b>
-        <span class="to-today" id="toToday">Today ›</span>
-      </button>
-      <div class="chip"><span class="dots" id="misses"></span><span>skips left</span></div>
-    </section>
-
     <div class="pager" id="pager"></div>
   </main>
 
-  <!-- Wheel + save button for a day that can still be logged (today, or yesterday until noon). -->
+  <button class="today-btn" id="todayBtn" type="button" tabindex="-1">Today ›</button>
+
+  <!-- Wheel + save button on today's page. -->
   <template id="loggerTpl">
     <section class="logger">
       <div class="wheel-card">
-        <p class="wheel-hint"></p>
+        <p class="wheel-hint">How many have you done today?</p>
         <div class="wheel"><div class="wheel-band" aria-hidden="true"></div></div>
       </div>
       <button class="save" type="button" disabled><span class="save-label">Scroll to log</span></button>
@@ -57,7 +54,7 @@
     <section class="done" hidden>
       <div class="done-card">
         <div class="done-emoji">💪</div>
-        <h2 class="done-title">Day complete!</h2>
+        <h2>Day complete!</h2>
         <p class="done-text">See you tomorrow!</p>
       </div>
     </section>

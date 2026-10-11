@@ -14,14 +14,14 @@ const els = {
   hello: $('#hello'),
   date: $('#date'),
   streak: $('#streak'),
-  streakChip: $('#streakChip'),
-  day: $('#day'),
-  misses: $('#misses'),
+  streakStat: $('#streakStat'),
+  lives: $('#lives'),
+  livesIcon: $('#livesIcon'),
+  livesStat: $('#livesStat'),
   pager: $('#pager'),
   dayTpl: $('#dayTpl'),
   loggerTpl: $('#loggerTpl'),
-  dayChip: $('#dayChip'),
-  toToday: $('#toToday'),
+  todayBtn: $('#todayBtn'),
   toast: $('#toast'),
   toastText: $('#toastText'),
   undo: $('#undo'),
@@ -44,20 +44,16 @@ const els = {
 
 let user = null;
 let stats = null;
-let loadedState = ''; // stateKey() the pages were built for
+let loadedDay = ''; // the day the pages were built for
 
 let pages = [];
 let todayIndex = 0;
 let current = -1;
-let loggable = {}; // dayKey -> logger controller (today, and yesterday during the grace window)
-let lastSavedKey = null;
+let today = null; // logger controller for today's page
 
 const fmt = (opts) => new Intl.DateTimeFormat('en', opts);
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
 const timeFmt = new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' }); // phone's own 12/24h style
-const graceEnd = timeFmt.format(new Date(2000, 0, 1, CONFIG.lateLogUntilHour));
-// Pages depend on the date and on whether yesterday's late-logging window is still open.
-const stateKey = () => `${dayKey()}|${new Date().getHours() < CONFIG.lateLogUntilHour}`;
 
 /* ---------- Header ---------- */
 
@@ -67,22 +63,21 @@ function renderHeader() {
   const toGo = diffDays(new Date(now.getFullYear(), now.getMonth(), now.getDate()), christmas);
   els.hello.textContent = `Hi, ${user}`;
   els.date.textContent = toGo > 0 ? `${plural(toGo, 'day')} until Christmas 🎄` : 'Merry Christmas! 🎄';
+
   els.streak.textContent = stats.streak;
-  els.streakChip.classList.toggle('hot', stats.streak > 0);
-  els.day.textContent = `Day ${stats.dayIndex}/${stats.totalDays}`;
+  els.streakStat.classList.toggle('hot', stats.streak > 0);
+  els.streakStat.setAttribute('aria-label', `${stats.streak}-day streak`);
+
+  const left = Math.max(0, stats.missesLeft);
+  els.lives.textContent = left;
+  els.livesIcon.textContent = left > 0 ? '💜' : '💔';
+  els.livesStat.classList.toggle('danger', stats.missesLeft <= 0);
+  els.livesStat.setAttribute('aria-label', `${plural(left, 'skip')} left`);
 
   const initial = [...user][0]?.toUpperCase() ?? '?';
   els.avatar.textContent = els.menuAvatar.textContent = initial;
   els.menuName.textContent = user;
   els.menuSub.textContent = `Day ${stats.dayIndex} of ${stats.totalDays} · ${stats.streak}-day streak`;
-
-  els.misses.replaceChildren();
-  for (let i = 0; i < CONFIG.allowedMisses; i++) {
-    const dot = document.createElement('i');
-    if (i < stats.missesLeft) dot.className = 'on';
-    els.misses.appendChild(dot);
-  }
-  els.misses.parentElement.classList.toggle('danger', stats.missesLeft < 0);
 }
 
 /* ---------- Day pages ---------- */
@@ -103,8 +98,8 @@ function pastSummary(dayTotal, sessions) {
   const ok = dayTotal >= goal;
   status.className = `status ${ok ? 'ok' : 'miss'}`;
   status.textContent = ok
-    ? '✅ Completed'
-    : dayTotal > 0 ? `${dayTotal} of ${goal} · skip used` : 'Skipped · skip used';
+    ? '🔥 Completed'
+    : dayTotal > 0 ? `💔 ${dayTotal} of ${goal} · skip used` : '💔 Skipped · skip used';
 
   const list = document.createElement('ul');
   list.className = 'sessions';
@@ -114,11 +109,6 @@ function pastSummary(dayTotal, sessions) {
     count.textContent = `+${e.count}`;
     const at = document.createElement('span');
     at.textContent = timeFmt.format(e.ts);
-    if (dayKey(new Date(e.ts)) !== e.date) {
-      const late = document.createElement('em');
-      late.textContent = 'next day';
-      at.prepend(late);
-    }
     li.append(count, at);
     list.appendChild(li);
   }
@@ -157,7 +147,7 @@ function buildPages(entries) {
   const byDay = {};
   for (const e of entries) (byDay[e.date] ||= []).push(e);
 
-  loggable = {};
+  today = null;
   todayIndex = Math.min(count - 1, Math.max(0, diffDays(start, todayDate)));
 
   const built = [];
@@ -178,19 +168,10 @@ function buildPages(entries) {
     el.querySelector('.next').disabled = i === count - 1;
     el.querySelector('.of').textContent = `of ${goal}`;
 
-    if (rel === 0 || key === stats.graceKey) {
-      el.classList.add(rel === 0 ? 'today' : 'late');
-      if (rel === 0) el.querySelector('.of').textContent = `of ${goal} today`;
-      loggable[key] = createLogger({
-        key,
-        isToday: rel === 0,
-        total: dayTotal,
-        page: el,
-        ring,
-        ringWrap,
-        count: countEl,
-        body,
-      });
+    if (rel === 0) {
+      el.classList.add('today');
+      el.querySelector('.of').textContent = `of ${goal} today`;
+      today = createLogger({ key, total: dayTotal, page: el, ring, count: countEl, body });
     } else if (rel < 0) {
       el.classList.add('past');
       el.classList.toggle('completed', dayTotal >= goal);
@@ -206,17 +187,12 @@ function buildPages(entries) {
     built.push(el);
   }
 
-  // Remind on today's page that yesterday can still be logged.
-  if (stats.graceKey && loggable[stats.graceKey]) {
-    built[todayIndex]?.querySelector('.prev').classList.add('alert');
-  }
-
   els.pager.replaceChildren(...built);
   pages = built;
-  for (const day of Object.values(loggable)) renderLogger(day);
+  if (today) renderLogger(today);
 }
 
-/* ---------- Logging (today, or yesterday until noon) ---------- */
+/* ---------- Logging today ---------- */
 
 function createLogger(day) {
   const frag = els.loggerTpl.content.cloneNode(true);
@@ -229,10 +205,6 @@ function createLogger(day) {
   day.delta = day.page.querySelector('.ring-delta');
   day.selected = day.total;
   day.saving = false;
-
-  frag.querySelector('.wheel-hint').textContent = day.isToday
-    ? 'How many have you done today?'
-    : `Forgot one? Log it until ${graceEnd} ⏰`;
   day.body.append(frag);
 
   day.wheel = new Wheel(day.wheelEl, {
@@ -263,12 +235,12 @@ function setMode(day, mode) {
   const done = mode === 'done';
   day.logger.hidden = done;
   day.done.hidden = !done;
-  day.ring.complete(done && day.isToday);
-  if (!done) return;
-  day.done.querySelector('.done-title').textContent = day.isToday ? 'Day complete!' : 'Yesterday saved!';
-  day.done.querySelector('.done-text').textContent = !day.isToday
-    ? 'Nice catch, your streak lives on.'
-    : stats.streak > 1 ? `${stats.streak} days in a row. See you tomorrow!` : 'All 30 done. See you tomorrow!';
+  day.ring.complete(done);
+  if (done) {
+    day.done.querySelector('.done-text').textContent = stats.streak > 1
+      ? `${stats.streak} days in a row. See you tomorrow!`
+      : 'All 30 done. See you tomorrow!';
+  }
 }
 
 function updateSelection(day, v) {
@@ -285,9 +257,9 @@ async function save(day) {
   const delta = day.selected - day.total;
   if (day.saving || delta <= 0) return;
 
-  // The page may have been open since before midnight / noon.
-  if (stateKey() !== loadedState) {
-    showToast('Too late for that day', false);
+  // The app may have stayed open past midnight: start the new day instead.
+  if (dayKey() !== loadedDay) {
+    showToast('A new day started', false);
     load();
     return;
   }
@@ -300,7 +272,6 @@ async function save(day) {
 
   await fx.flyParticles(day.saveBtn, day.center, Math.min(18, 6 + Math.round(delta / 2)));
   await store.addEntry(user, day.key, delta);
-  lastSavedKey = day.key;
 
   const prev = day.total;
   day.total += delta;
@@ -316,9 +287,8 @@ async function save(day) {
   if (day.total >= goal) {
     fx.sound('complete');
     fx.celebrateConfetti();
-    fx.bump(els.streakChip, 'flare');
+    fx.bump(els.streakStat, 'flare');
     setMode(day, 'done');
-    if (!day.isToday) pages[todayIndex]?.querySelector('.prev').classList.remove('alert');
   } else {
     fx.sound('save');
     day.wheel.setRange(day.total, goal, day.total);
@@ -332,21 +302,18 @@ async function save(day) {
 
 async function undo() {
   hideToast();
-  if (!lastSavedKey) return;
-  const removed = await store.removeLastEntry(user, lastSavedKey);
+  const removed = await store.removeLastEntry(user, dayKey());
   if (!removed) return;
   fx.haptic(10);
-  const keepIndex = current;
-  const prev = loggable[lastSavedKey]?.total;
-  await load(keepIndex);
-  const day = loggable[lastSavedKey];
-  if (day && prev != null) fx.countUp(day.count, prev, day.total, 500);
+  const prev = today?.total;
+  await load(current);
+  if (today && prev != null) fx.countUp(today.count, prev, today.total, 500);
 }
 
 async function load(index) {
   const entries = await store.entries(user);
   stats = computeStats(totalsByDay(entries));
-  loadedState = stateKey();
+  loadedDay = dayKey();
   renderHeader();
   buildPages(entries);
   goTo(index ?? todayIndex, false);
@@ -389,11 +356,12 @@ function updatePager() {
     if (current !== -1) fx.haptic(4);
     current = index;
   }
+
+  // "Back to today" pill: keep its arrow while it fades out, so it never flips mid-animation.
   const away = index !== todayIndex;
-  if (away) els.toToday.textContent = index < todayIndex ? 'Today ›' : '‹ Today';
-  els.dayChip.classList.toggle('away', away);
-  els.dayChip.tabIndex = away ? 0 : -1;
-  els.dayChip.setAttribute('aria-label', away ? 'Back to today' : els.day.textContent);
+  if (away) els.todayBtn.textContent = index < todayIndex ? 'Today ›' : '‹ Today';
+  els.todayBtn.classList.toggle('show', away);
+  els.todayBtn.tabIndex = away ? 0 : -1;
 }
 
 /* ---------- Toast ---------- */
@@ -469,8 +437,7 @@ els.pager.addEventListener('click', (e) => {
   if (!nav || nav.disabled) return;
   goTo(current + (nav.classList.contains('next') ? 1 : -1), true);
 });
-els.dayChip.addEventListener('click', () => {
-  if (!els.dayChip.classList.contains('away')) return;
+els.todayBtn.addEventListener('click', () => {
   fx.haptic(8);
   goTo(todayIndex, true);
 });
@@ -479,9 +446,9 @@ addEventListener('resize', () => goTo(current, false));
 // Audio can only start after a user gesture; the first touch anywhere unlocks it.
 document.addEventListener('pointerdown', fx.unlockAudio, { once: true });
 
-// The page may stay open for hours: rebuild when a new day starts or the grace window ends.
+// The app may stay open overnight: rebuild when a new day starts.
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible' && user && stateKey() !== loadedState) load();
+  if (document.visibilityState === 'visible' && user && dayKey() !== loadedDay) load();
 });
 
 els.onboardForm.addEventListener('submit', async (e) => {

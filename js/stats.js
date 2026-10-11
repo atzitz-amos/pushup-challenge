@@ -29,39 +29,29 @@ export function computeStats(totals, now = new Date()) {
   const totalDays = diffDays(start, end) + 1;
   const dayIndex = Math.min(totalDays, Math.max(0, diffDays(start, today) + 1));
 
-  // Until lateLogUntilHour, an unfinished yesterday is still pending rather than missed.
-  const yesterday = addDays(today, -1);
-  const graceKey = now.getHours() < CONFIG.lateLogUntilHour && yesterday >= start && yesterday <= end && !done(yesterday)
-    ? dayKey(yesterday)
-    : null;
-
   // Past days (before today) inside the challenge that didn't reach the goal.
   let misses = 0;
   for (let d = start; d < today && d <= end; d = addDays(d, 1)) {
-    if (!done(d) && dayKey(d) !== graceKey) misses++;
+    if (!done(d)) misses++;
   }
 
-  // Consecutive completed days, ending today if done, else yesterday
-  // (or the day before, while yesterday is still pending).
-  let from = done(today) ? today : yesterday;
-  if (dayKey(from) === graceKey) from = addDays(from, -1);
+  // Consecutive completed days, ending today if done, else yesterday.
   let streak = 0;
-  for (let d = from; d >= start && done(d); d = addDays(d, -1)) {
+  for (let d = done(today) ? today : addDays(today, -1); d >= start && done(d); d = addDays(d, -1)) {
     streak++;
   }
 
-  // Totals so far, and the longest run of completed days (today and a pending
-  // yesterday don't break a run while they can still be finished).
+  // Totals so far, and the longest run of completed days (today doesn't break
+  // a run while it can still be finished).
   let completedDays = 0;
   let totalPushups = 0;
   let bestStreak = 0;
   for (let d = start, run = 0; d <= end && d <= today; d = addDays(d, 1)) {
-    const key = dayKey(d);
-    totalPushups += totals[key] || 0;
+    totalPushups += totals[dayKey(d)] || 0;
     if (done(d)) {
       completedDays++;
       bestStreak = Math.max(bestStreak, ++run);
-    } else if (key !== graceKey && d < today) {
+    } else if (d < today) {
       run = 0;
     }
   }
@@ -76,7 +66,6 @@ export function computeStats(totals, now = new Date()) {
     bestStreak,
     completedDays,
     totalPushups,
-    graceKey,
     todayTotal: totals[dayKey(today)] || 0,
   };
 }
