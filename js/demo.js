@@ -15,11 +15,16 @@ const PLAN = [
   [0, [[8, 7, 30]]],
 ];
 
+// A pretend team to try the team page with: join it again with code DEMO42.
+export const DEMO_TEAM = { code: 'DEMO42', name: 'Demo team' };
+
 // Pretend teammates: one who never misses, one who has used both skips.
 const TEAMMATES = {
   Lea: [30, 30, 30, 30, 30, 30, 30, 30, 30, 30], // index = days ago
   Mia: [15, 30, 30, 30, 0, 30, 30, 12, 30, 30],
 };
+
+export const DEMO_MATES = Object.keys(TEAMMATES);
 
 let n = 0;
 const fakeId = () => `demo-${n++}`;
@@ -29,7 +34,7 @@ export function mockEntries(user, now = new Date()) {
   const add = (name, ago, count, h, m) => {
     const day = new Date(now.getFullYear(), now.getMonth(), now.getDate() - ago);
     const at = new Date(day.getFullYear(), day.getMonth(), day.getDate(), h, m);
-    entries.push({ id: fakeId(), user: name, date: dayKey(day), count, ts: Math.min(at.getTime(), now.getTime()) });
+    entries.push({ id: fakeId(), user: name, date: dayKey(day), count, ts: Math.min(at.getTime(), now.getTime()), team: DEMO_TEAM.code, up: true });
   };
   for (const [ago, sessions] of PLAN) {
     for (const [count, h, m] of sessions) add(user, ago, count, h, m);

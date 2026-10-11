@@ -1,17 +1,22 @@
 // Entries live in localStorage, so the app opens instantly and works offline.
-// When Supabase is configured they are also synced with a shared table, so
-// everyone sees each other's progress. Saves and undos are queued and uploaded
-// in the background; a failed upload is retried on the next sync.
-// Entry: { id, user, date, count, ts }.
+// Once you are in a team (and Supabase is configured), your entries are uploaded
+// to that team and everyone's entries in the team are downloaded. Saves and undos
+// are queued and uploaded in the background; failed uploads retry on the next sync.
+//
+// Entry: { id, user, date, count, ts, team, up }
+//   team: code of the team it belongs to (null before joining one)
+//   up:   whether it is stored on the server for that team
 
 import { CONFIG, DEMO, SUPABASE } from './config.js';
-import { mockEntries } from './demo.js';
+import { mockEntries, DEMO_TEAM, DEMO_MATES } from './demo.js';
 
 const KEY = DEMO ? 'pushups.demo' : 'pushups.v1'; // demo data never touches real data
-const REMOTE = !DEMO && !!(SUPABASE.url && SUPABASE.anonKey);
+const SERVER = !DEMO && !!(SUPABASE.url && SUPABASE.anonKey);
+const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // same alphabet as the server
 
-// Names are the identity: the same name on another device is the same person.
+// Names are the identity within a team: the same name on another device is the same person.
 export const sameName = (a, b) => (a || '').trim().toLowerCase() === (b || '').trim().toLowerCase();
+export const normalizeCode = (code) => (code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 
 // crypto.randomUUID only exists on https; the phone test server is plain http.
 function uid() {
@@ -35,14 +40,18 @@ function load() {
     s = {};
   }
   s.entries ||= [];
-  s.pending ||= []; // ids saved here but not uploaded yet
   s.removed ||= []; // ids undone here but not deleted on the server yet
-  // Entries from before syncing existed have no id: give them one and upload them.
-  for (const e of s.entries) {
-    if (!e.id) {
-      e.id = uid();
-      s.pending.push(e.id);
+  s.team ||= null;
+  // Data from before teams: nothing is in a team yet, so everything uploads on joining one.
+  if (!s.v2) {
+    for (const e of s.entries) {
+      e.id ||= uid();
+      e.team = null;
+      e.up = false;
     }
+    delete s.pending;
+    s.removed = [];
+    s.v2 = true;
   }
   return s;
 }
@@ -57,14 +66,16 @@ function persist() {
   }
 }
 
-/* ---------- Supabase (PostgREST over fetch, no library needed) ---------- */
+const mine = (e) => sameName(e.user, state.user);
 
-async function api(path, { method = 'GET', body, prefer } = {}) {
+/* ---------- Supabase (database functions over fetch, no library needed) ---------- */
+
+async function rpc(fn, args) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 8000);
   try {
-    const res = await fetch(`${SUPABASE.url.replace(/\/$/, '')}/rest/v1/${path}`, {
-      method,
+    const res = await fetch(`${SUPABASE.url.replace(/\/$/, '')}/rest/v1/rpc/${fn}`, {
+      method: 'POST',
       signal: ctrl.signal,
       headers: {
         apikey: SUPABASE.anonKey,
@@ -72,35 +83,35 @@ async function api(path, { method = 'GET', body, prefer } = {}) {
         // publishable keys (sb_publishable_…) must only be sent as apikey.
         ...(SUPABASE.anonKey.startsWith('eyJ') ? { Authorization: `Bearer ${SUPABASE.anonKey}` } : {}),
         'Content-Type': 'application/json',
-        ...(prefer ? { Prefer: prefer } : {}),
       },
-      body: body ? JSON.stringify(body) : undefined,
+      body: JSON.stringify(args),
     });
     if (!res.ok) throw new Error(`Supabase ${res.status}: ${await res.text()}`);
-    return method === 'GET' ? res.json() : null;
+    const text = await res.text();
+    return text ? JSON.parse(text) : null;
   } finally {
     clearTimeout(timer);
   }
 }
 
 const toRow = (e) => ({ id: e.id, user_name: e.user, day: e.date, count: e.count, created_at: new Date(e.ts).toISOString() });
-const fromRow = (r) => ({ id: r.id, user: r.user_name, date: r.day, count: r.count, ts: Date.parse(r.created_at) });
+const fromRow = (r, team) => ({ id: r.id, user: r.user_name, date: r.day, count: r.count, ts: Date.parse(r.created_at), team, up: true });
 
-// Uploads queued saves and deletes. Concurrent calls share one run.
+// Uploads queued saves and undos for the current team. Concurrent calls share one run.
 let flushing = null;
 function flush() {
-  if (!REMOTE) return Promise.resolve();
+  if (!SERVER || !state.team) return Promise.resolve();
   flushing ||= (async () => {
-    const up = state.entries.filter((e) => state.pending.includes(e.id));
+    const code = state.team.code;
+    const up = state.entries.filter((e) => mine(e) && !e.up && e.team === code);
     if (up.length) {
-      // ignore-duplicates: an upload that succeeded but whose reply got lost is harmless to resend.
-      await api('entries', { method: 'POST', body: up.map(toRow), prefer: 'resolution=ignore-duplicates,return=minimal' });
-      state.pending = state.pending.filter((id) => !up.some((e) => e.id === id));
+      await rpc('add_entries', { p_code: code, p_rows: up.map(toRow) });
+      for (const e of up) e.up = true;
       persist();
     }
     if (state.removed.length) {
       const ids = [...state.removed];
-      await api(`entries?id=in.(${ids.join(',')})`, { method: 'DELETE' });
+      await rpc('remove_entries', { p_code: code, p_ids: ids });
       state.removed = state.removed.filter((id) => !ids.includes(id));
       persist();
     }
@@ -112,12 +123,22 @@ function flush() {
 
 const byTime = (a, b) => a.ts - b.ts;
 const signature = (list) => list.map((e) => `${e.id}:${e.count}`).sort().join('|');
+const randomCode = () => Array.from({ length: 6 }, () => CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)]).join('');
 
 /* ---------- Public interface ---------- */
 
 export const store = {
-  isRemote: REMOTE,
   lastSync: 0,
+
+  // Team features exist (a real server, or the pretend one in demo mode).
+  hasTeams: SERVER || DEMO,
+  // Entries are currently being shared with a server.
+  get isRemote() {
+    return SERVER && !!state.team;
+  },
+  get team() {
+    return state.team;
+  },
 
   async getUser() {
     return state.user || null;
@@ -125,20 +146,22 @@ export const store = {
 
   async setUser(name) {
     state.user = name;
-    if (DEMO && !state.entries.length) state.entries = mockEntries(name);
+    if (DEMO && !state.entries.length) {
+      state.entries = mockEntries(name);
+      state.team = DEMO_TEAM;
+    }
     persist();
   },
 
   // Demo only: forget the name and sample data so the demo starts over.
   async reset() {
-    state = { entries: [], pending: [], removed: [] };
+    state = { entries: [], removed: [], team: null, v2: true };
     persist();
   },
 
   async addEntry(user, date, count) {
-    const entry = { id: uid(), user, date, count, ts: Date.now() };
+    const entry = { id: uid(), user, date, count, ts: Date.now(), team: state.team?.code ?? null, up: false };
     state.entries.push(entry);
-    state.pending.push(entry.id);
     persist();
     flush().catch((err) => console.warn('Upload failed, will retry:', err));
     return entry;
@@ -150,8 +173,7 @@ export const store = {
       const e = state.entries[i];
       if (sameName(e.user, user) && e.date === date) {
         state.entries.splice(i, 1);
-        if (state.pending.includes(e.id)) state.pending = state.pending.filter((id) => id !== e.id);
-        else state.removed.push(e.id);
+        if (e.up && e.team === state.team?.code) state.removed.push(e.id);
         persist();
         flush().catch((err) => console.warn('Undo upload failed, will retry:', err));
         return e;
@@ -165,22 +187,79 @@ export const store = {
     return state.entries.filter((e) => sameName(e.user, user)).sort(byTime);
   },
 
-  // Everyone's entries (for the team page).
-  allEntries() {
-    return [...state.entries].sort(byTime);
+  // Entries of everyone in your team, plus yours (for the team page).
+  teamEntries() {
+    let list = state.entries;
+    if (DEMO && state.team?.code !== DEMO_TEAM.code) list = list.filter(mine);
+    return [...list].sort(byTime);
   },
 
-  // Uploads anything queued, then reloads everyone's entries from the server.
+  /* --- Teams --- */
+
+  // Finds a team by code. Returns { team, members } (members: names already in it), or null.
+  async lookupTeam(code) {
+    code = normalizeCode(code);
+    if (DEMO) return code === DEMO_TEAM.code ? { team: DEMO_TEAM, members: DEMO_MATES } : null;
+    const team = await rpc('find_team', { p_code: code });
+    if (!team) return null;
+    const rows = await rpc('team_entries', { p_code: code });
+    const members = [];
+    for (const r of rows) if (!members.some((m) => sameName(m, r.user_name))) members.push(r.user_name);
+    return { team, members };
+  },
+
+  // Creates a team and returns it (call joinTeam with it to enter it).
+  async createTeam(name) {
+    if (DEMO) return { code: randomCode(), name: name.trim() };
+    return rpc('create_team', { p_name: name });
+  },
+
+  // Enters a team. Your entries come along: anything not yet stored in this team
+  // is uploaded to it (with a fresh id if it already lives in another team).
+  async joinTeam(team) {
+    // What the team already has from you (e.g. you were in it before, or another device):
+    // those entries are reused instead of uploaded twice.
+    const existing = SERVER ? await rpc('team_entries', { p_code: team.code }) : [];
+    state.team = { code: team.code, name: team.name };
+    if (!DEMO) state.entries = state.entries.filter(mine); // other teams' people go
+    for (const e of state.entries) {
+      if (!mine(e) || e.team === team.code) continue;
+      const same = existing.find((r) => sameName(r.user_name, e.user) && r.day === e.date
+        && r.count === e.count && Math.abs(Date.parse(r.created_at) - e.ts) < 1000);
+      if (same) {
+        e.id = same.id;
+        e.up = true;
+      } else {
+        if (e.up) e.id = uid(); // already stored in another team: needs its own id here
+        e.up = false;
+      }
+      e.team = team.code;
+    }
+    state.removed = [];
+    persist();
+    if (SERVER) await this.sync();
+  },
+
+  async leaveTeam() {
+    state.team = null;
+    if (!DEMO) state.entries = state.entries.filter(mine);
+    state.removed = [];
+    persist();
+  },
+
+  // Uploads anything queued, then reloads the team's entries from the server.
   // Returns { ok, changed }; ok is false when offline or misconfigured.
   async sync() {
-    if (!REMOTE) return { ok: true, changed: false };
+    if (!this.isRemote) return { ok: true, changed: false };
+    const code = state.team.code;
     try {
       await flush();
-      const rows = await api(`entries?select=id,user_name,day,count,created_at&day=gte.${CONFIG.startDate}&order=created_at.asc&limit=20000`);
+      const rows = await rpc('team_entries', { p_code: code });
+      if (state.team?.code !== code) return { ok: true, changed: false }; // left meanwhile
       const before = signature(state.entries);
-      const server = rows.map(fromRow).filter((e) => !state.removed.includes(e.id));
-      const local = state.entries.filter((e) => state.pending.includes(e.id) && !server.some((s) => s.id === e.id));
-      state.entries = [...server, ...local];
+      const server = rows.map((r) => fromRow(r, code)).filter((e) => !state.removed.includes(e.id));
+      const waiting = state.entries.filter((e) => mine(e) && !e.up && !server.some((s) => s.id === e.id));
+      state.entries = [...server, ...waiting];
       persist();
       this.lastSync = Date.now();
       return { ok: true, changed: signature(state.entries) !== before };

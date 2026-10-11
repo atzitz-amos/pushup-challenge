@@ -1,12 +1,12 @@
 import { CONFIG, DEMO } from './config.js';
-import { store } from './store.js';
+import { store, normalizeCode } from './store.js';
 import { computeStats, dayKey, parseDay, addDays, diffDays, totalsByDay } from './stats.js';
 import { Wheel } from './wheel.js';
 import { createRing } from './ring.js';
 import * as fx from './effects.js';
 import { registerPanel, openPanel, closePanel, preparePanel, settlePanel, sync as syncPanels, createSheet } from './nav.js';
 import { renderCalendar } from './calendar.js';
-import { renderTeam } from './team.js';
+import { createTeamPage } from './team.js';
 import { onVerticalSwipe, onHorizontalSwipe } from './gestures.js';
 
 const $ = (s) => document.querySelector(s);
@@ -45,6 +45,7 @@ const els = {
   calendarBody: $('#calendarBody'),
   teamPanel: $('#panel-team'),
   teamBody: $('#teamBody'),
+  teamMenuSub: $('#teamMenuSub'),
   app: $('.app'),
 };
 
@@ -84,6 +85,7 @@ function renderHeader() {
   els.avatar.textContent = els.menuAvatar.textContent = initial;
   els.menuName.textContent = user;
   els.menuSub.textContent = `Day ${stats.dayIndex} of ${stats.totalDays} · ${stats.streak}-day streak`;
+  els.teamMenuSub.textContent = store.team ? store.team.name : 'Create or join a team';
 }
 
 /* ---------- Day pages ---------- */
@@ -494,15 +496,52 @@ let syncOk = true;
 const ownSignature = (list) => list.map((e) => `${e.id}:${e.count}`).join('|');
 
 function teamStatus() {
-  if (DEMO) return 'Demo: Lea and Mia are pretend teammates.';
-  if (!store.isRemote) return 'Only you for now. Connect Supabase (see README) to see everyone.';
+  if (DEMO) return store.team?.code === 'DEMO42' ? 'Demo: Lea and Mia are pretend teammates.' : 'Demo team: only you so far.';
   if (!syncOk) return 'Offline · showing the last saved progress.';
   if (!store.lastSync) return 'Loading…';
   return `Updated ${timeFmt.format(store.lastSync)}`;
 }
 
+// A shared invite link (…?team=CODE) opens the team page with the code filled in.
+let inviteCode = normalizeCode(new URLSearchParams(location.search).get('team')).slice(0, 6) || null;
+function openInvite() {
+  if (!inviteCode || !user) return;
+  // Drop the code from the address so a reload doesn't reopen it (other parameters stay).
+  const params = new URLSearchParams(location.search);
+  params.delete('team');
+  const query = params.toString();
+  history.replaceState(null, '', location.pathname + (query ? `?${query}` : '') + location.hash);
+  openPanel('team');
+}
+
+const teamPage = createTeamPage(els.teamBody, {
+  getData: () => ({
+    team: store.team,
+    entries: store.teamEntries(),
+    me: user,
+    status: teamStatus(),
+    available: store.hasTeams,
+    inviteCode,
+  }),
+  actions: {
+    lookup: (code) => store.lookupTeam(code),
+    create: (name) => store.createTeam(name),
+    async join(team) {
+      await store.joinTeam(team); // uploads your history to the team, then syncs
+      inviteCode = null;
+      syncOk = true;
+      fx.haptic(15);
+      await load(current);
+    },
+    async leave() {
+      await store.leaveTeam();
+      await load(current);
+    },
+  },
+});
+
 function renderTeamPanel() {
-  renderTeam(els.teamBody, { entries: store.allEntries(), me: user, status: teamStatus() });
+  teamPage.render();
 }
 
 // Pulls everyone's latest entries. Today's page is only rebuilt when your own
@@ -531,6 +570,7 @@ registerPanel('team', {
   },
   onClose() {
     els.app.classList.remove('behind');
+    teamPage.reset();
   },
 });
 
@@ -683,7 +723,8 @@ els.onboardForm.addEventListener('submit', async (e) => {
   els.onboard.classList.add('leaving');
   setTimeout(() => (els.onboard.hidden = true), 400);
   await load();
-  refreshFromServer(); // a name used before on another device brings its history along
+  refreshFromServer();
+  openInvite();
 });
 
 function showOnboarding() {
@@ -709,6 +750,7 @@ user = await store.getUser();
 if (user) {
   await load(); // instantly, from what is saved on this phone
   refreshFromServer();
+  openInvite();
 } else {
   showOnboarding();
 }
