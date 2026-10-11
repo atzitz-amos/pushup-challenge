@@ -15,8 +15,8 @@ export const COLORS = ['#34d399', '#38bdf8', '#a78bfa', '#6ee7b7', '#818cf8'];
 // This key is meant to be public: what it can do is limited by the table's
 // row-level security policies. Leave empty to stay local-only.
 export const SUPABASE = {
-  url: '',
-  anonKey: '',
+  url: 'https://vdatwkzehwelmmlqgoys.supabase.co',
+  anonKey: 'sb_publishable_tINRZ9IhGmWVPsJ3G-k8bA_O70eN1ZY',
 };
 
 // Demo mode: open with ?demo, or from a page that sets window.PUSHUP_DEMO (the published preview).
