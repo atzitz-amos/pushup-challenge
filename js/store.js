@@ -188,6 +188,22 @@ export const store = {
     persist();
   },
 
+  // Deletes all your push-ups: in your team on the server first (so they don't
+  // come back on the next sync), then on this phone. Throws when offline.
+  async resetProgress() {
+    if (SERVER && state.team) await rpc('reset_entries', { p_code: state.team.code, p_name: state.user });
+    state.entries = state.entries.filter((e) => !mine(e));
+    state.removed = [];
+    persist();
+  },
+
+  // Forgets everything on this phone (name, team, rules, push-ups) after leaving the team.
+  // What you saved in the team stays there.
+  async startOver() {
+    await this.leaveTeam();
+    await this.reset();
+  },
+
   async addEntry(user, date, count) {
     const entry = { id: uid(), user, date, count, ts: Date.now(), team: state.team?.code ?? null, up: false };
     state.entries.push(entry);

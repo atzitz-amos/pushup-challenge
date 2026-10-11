@@ -184,6 +184,14 @@ language sql security definer set search_path = public as $$
   where team_code = upper(trim(p_code)) and id = any (p_ids) and created_at > now() - interval '1 day';
 $$;
 
+-- "Reset my progress" in the settings: deletes all of one person's entries in a team.
+create or replace function public.reset_entries(p_code text, p_name text)
+returns void
+language sql security definer set search_path = public as $$
+  delete from entries
+  where team_code = upper(trim(p_code)) and lower(user_name) = lower(trim(p_name));
+$$;
+
 -- Saves (or moves) this phone's notification subscription to a team.
 create or replace function public.save_push_subscription(p_code text, p_name text, p_subscription json)
 returns void
@@ -217,6 +225,7 @@ grant execute on function
   public.team_members(text),
   public.add_entries(text, json),
   public.remove_entries(text, uuid[]),
+  public.reset_entries(text, text),
   public.save_push_subscription(text, text, json),
   public.delete_push_subscription(text)
 to anon, authenticated;

@@ -631,6 +631,21 @@ const settingsPage = createSettingsPage(els.settingsBody, {
     teamName: store.rulesAreShared ? store.team.name : null,
     push: { ...pushStatus(), enabled: wantsPush() && pushStatus().supported && Notification.permission === 'granted' },
   }),
+  async resetProgress() {
+    await store.resetProgress();
+    fx.haptic(15);
+    await load(current);
+    showToast('Progress reset', false);
+  },
+  async startOver() {
+    await disablePush();
+    await store.startOver();
+    user = null;
+    closePanel();
+    hideToast();
+    els.nameInput.value = '';
+    showOnboarding();
+  },
   async togglePush(on) {
     if (on) {
       await enablePush(store.team, user);

@@ -53,11 +53,14 @@ function stepper({ value, min, max, unit, onChange }) {
 }
 
 // getContext(): { rules, teamName, push: { supported, reason, enabled } }
-// save(rules) → Promise, togglePush(on) → Promise
-export function createSettingsPage(root, { getContext, save, togglePush }) {
+// save(rules), togglePush(on), resetProgress(), startOver() → Promise
+export function createSettingsPage(root, { getContext, save, togglePush, resetProgress, startOver }) {
   let draft = null;
   let status = ''; // '', 'saving', 'saved', or an error message
   let pushNote = ''; // message under the notifications switch
+  let armed = null; // 'progress' | 'all': waiting for the confirming second tap
+  let armTimer = 0;
+  let resetNote = '';
 
   function render() {
     const { rules, teamName } = getContext();
@@ -158,6 +161,45 @@ export function createSettingsPage(root, { getContext, save, togglePush }) {
     if (note) notifyCard.appendChild(el('p', 'set-hint', note));
     wrap.appendChild(notifyCard);
 
+    // Reset (each button needs a second tap to confirm)
+    wrap.appendChild(el('span', 'th-label set-section', 'Reset'));
+    const resetCard = el('section', 'set-card');
+    const danger = (key, label, confirmLabel, hint, action, done) => {
+      const b = el('button', `set-danger${armed === key ? ' armed' : ''}`, armed === key ? confirmLabel : label);
+      b.type = 'button';
+      b.addEventListener('click', async () => {
+        if (armed !== key) {
+          armed = key;
+          resetNote = '';
+          clearTimeout(armTimer);
+          armTimer = setTimeout(() => { armed = null; render(); }, 3500);
+          render();
+          return;
+        }
+        armed = null;
+        clearTimeout(armTimer);
+        b.disabled = true;
+        try {
+          await action();
+          resetNote = done;
+        } catch (err) {
+          console.warn(err);
+          resetNote = "Couldn't reach the server, so nothing was deleted. Try again when you're online.";
+        }
+        render();
+      });
+      resetCard.append(b, el('p', 'set-hint', hint));
+    };
+    danger('progress', 'Reset my progress', 'Tap again to delete all your push-ups',
+      teamName ? `Deletes all your push-ups, on this phone and in “${teamName}”. Your name, team and settings stay.`
+        : 'Deletes all your push-ups on this phone. Your name and settings stay.',
+      resetProgress, 'Your progress was reset.');
+    danger('all', 'Start over on this phone', 'Tap again to start over',
+      'Leaves your team and forgets your name, settings and push-ups on this phone. What you saved in a team stays there.',
+      startOver, '');
+    if (resetNote) resetCard.appendChild(el('p', resetNote.startsWith("Couldn't") ? 'team-error' : 'set-hint', resetNote));
+    wrap.appendChild(resetCard);
+
     root.replaceChildren(wrap);
 
     // Lightweight update while stepping (re-rendering would interrupt a held button).
@@ -175,6 +217,8 @@ export function createSettingsPage(root, { getContext, save, togglePush }) {
     reset() {
       draft = null;
       status = '';
+      armed = null;
+      resetNote = '';
     },
   };
 }

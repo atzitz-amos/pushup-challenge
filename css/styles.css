@@ -1105,3 +1105,15 @@ button.cal-tile:active { transform: scale(.9); }
 .set-toggle { display: flex; align-items: center; gap: 14px; width: 100%; text-align: left; }
 .set-toggle:disabled { opacity: .45; }
 .th-push { border-color: rgba(251, 191, 36, .35); background: linear-gradient(135deg, rgba(251, 191, 36, .08), var(--card)); }
+
+/* Reset buttons (two taps) */
+.set-danger {
+  height: 48px;
+  border-radius: 14px;
+  background: rgba(244, 114, 182, .1); color: #f9b4cf;
+  font-size: 15px; font-weight: 800;
+  transition: background .2s, transform .15s var(--spring);
+}
+.set-danger:active { transform: scale(.97); }
+.set-danger.armed { background: #e11d48; color: #fff; }
+.set-danger:disabled { opacity: .5; }
