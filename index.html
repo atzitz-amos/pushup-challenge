@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#070b16">
+  <meta name="color-scheme" content="dark">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Pushups">
+  <title>Pushup Challenge</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
+  <link rel="stylesheet" href="css/styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.js" defer></script>
+  <script type="module" src="js/app.js"></script>
+</head>
+<body>
+  <div class="aurora" aria-hidden="true"><span></span><span></span><span></span></div>
+
+  <main class="app">
+    <header class="top">
+      <div>
+        <h1 class="hello" id="hello">Hi!</h1>
+        <p class="date" id="date"></p>
+      </div>
+      <div class="top-actions">
+        <button class="demo-btn" id="demoBtn" type="button" hidden>Restart demo</button>
+        <button class="icon-btn" id="sound" type="button" aria-label="Mute sounds">🔊</button>
+      </div>
+    </header>
+
+    <section class="chips">
+      <div class="chip" id="streakChip"><span class="flame">🔥</span><b id="streak">0</b><span>streak</span></div>
+      <!-- Shows the day number; turns into a "back to today" button on other days. -->
+      <button class="chip day-chip" id="dayChip" type="button" tabindex="-1">
+        <b id="day">Day 1</b>
+        <span class="to-today" id="toToday">Today ›</span>
+      </button>
+      <div class="chip"><span class="dots" id="misses"></span><span>skips left</span></div>
+    </section>
+
+    <div class="pager" id="pager"></div>
+  </main>
+
+  <!-- Wheel + save button for a day that can still be logged (today, or yesterday until noon). -->
+  <template id="loggerTpl">
+    <section class="logger">
+      <div class="wheel-card">
+        <p class="wheel-hint"></p>
+        <div class="wheel"><div class="wheel-band" aria-hidden="true"></div></div>
+      </div>
+      <button class="save" type="button" disabled><span class="save-label">Scroll to log</span></button>
+    </section>
+
+    <section class="done" hidden>
+      <div class="done-card">
+        <div class="done-emoji">💪</div>
+        <h2 class="done-title">Day complete!</h2>
+        <p class="done-text">See you tomorrow!</p>
+      </div>
+    </section>
+  </template>
+
+  <template id="dayTpl">
+    <section class="page">
+      <div class="page-inner">
+        <div class="page-head">
+          <button class="nav prev" type="button" aria-label="Previous day">‹</button>
+          <div class="page-label">
+            <h2 class="page-title"></h2>
+            <p class="page-sub"></p>
+          </div>
+          <button class="nav next" type="button" aria-label="Next day">›</button>
+        </div>
+        <div class="ring-wrap">
+          <div class="ring-glow" aria-hidden="true"></div>
+          <svg class="ring" viewBox="0 0 200 200" aria-hidden="true">
+            <g transform="rotate(-90 100 100)">
+              <circle class="ring-track" cx="100" cy="100" r="88"/>
+              <circle class="ring-preview" cx="100" cy="100" r="88"/>
+              <circle class="ring-progress" cx="100" cy="100" r="88"/>
+            </g>
+          </svg>
+          <div class="ring-center">
+            <div class="count">0</div>
+            <div class="of">of 30</div>
+            <div class="ring-delta">+0</div>
+          </div>
+        </div>
+        <div class="page-body"></div>
+      </div>
+    </section>
+  </template>
+
+  <!-- Shared ring gradient (user space of the rotated ring group: arc start at the top, sweeping to the bottom-left). -->
+  <svg class="defs" aria-hidden="true">
+    <defs>
+      <linearGradient id="ringGrad" gradientUnits="userSpaceOnUse" x1="200" y1="100" x2="0" y2="0">
+        <stop offset="0" stop-color="#34d399"/>
+        <stop offset=".5" stop-color="#38bdf8"/>
+        <stop offset="1" stop-color="#a78bfa"/>
+      </linearGradient>
+    </defs>
+  </svg>
+
+  <div class="toast" id="toast" role="status">
+    <span id="toastText"></span>
+    <button type="button" id="undo">Undo</button>
+  </div>
+
+  <div class="onboard" id="onboard" hidden>
+    <form class="onboard-card" id="onboardForm">
+      <div class="onboard-emoji">💪</div>
+      <h2>30 a day<br>until Christmas</h2>
+      <p>At most two skipped days. Let's go!</p>
+      <p class="demo-note" id="demoNote" hidden>Demo: you'll start on day 10 with sample history.</p>
+      <input id="nameInput" type="text" placeholder="Your name" autocomplete="given-name" maxlength="20" required>
+      <button class="save" type="submit">Start</button>
+    </form>
+  </div>
+</body>
+</html>
