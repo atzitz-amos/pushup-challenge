@@ -1,4 +1,4 @@
-// Sample history for demo mode, relative to today: yours plus two pretend sisters.
+// Sample history for demo mode, relative to today: yours plus two pretend teammates.
 import { dayKey } from './stats.js';
 
 // [days ago, sessions: [count, hour, minute]]
@@ -15,8 +15,8 @@ const PLAN = [
   [0, [[8, 7, 30]]],
 ];
 
-// Pretend sisters: one who never misses, one who has used both skips.
-const SISTERS = {
+// Pretend teammates: one who never misses, one who has used both skips.
+const TEAMMATES = {
   Lea: [30, 30, 30, 30, 30, 30, 30, 30, 30, 30], // index = days ago
   Mia: [15, 30, 30, 30, 0, 30, 30, 12, 30, 30],
 };
@@ -34,7 +34,7 @@ export function mockEntries(user, now = new Date()) {
   for (const [ago, sessions] of PLAN) {
     for (const [count, h, m] of sessions) add(user, ago, count, h, m);
   }
-  for (const [name, days] of Object.entries(SISTERS)) {
+  for (const [name, days] of Object.entries(TEAMMATES)) {
     if (name.toLowerCase() === user.trim().toLowerCase()) continue;
     days.forEach((total, ago) => {
       if (total >= 30) {

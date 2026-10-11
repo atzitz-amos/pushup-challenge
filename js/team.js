@@ -1,4 +1,4 @@
-// Sisters panel: one card per person with today's progress, streak, skips left
+// Team panel: one card per person with today's progress, streak, skips left
 // and their last seven days, built from everyone's synced entries.
 import { CONFIG } from './config.js';
 import { computeStats, totalsByDay, dayKey, addDays, parseDay } from './stats.js';
@@ -48,7 +48,7 @@ function weekStrip(totals) {
   return strip;
 }
 
-export function renderSisters(root, { entries, me, status }) {
+export function renderTeam(root, { entries, me, status }) {
   const { goal } = CONFIG;
   const list = people(entries, me).sort((a, b) =>
     (b.stats.todayTotal >= goal) - (a.stats.todayTotal >= goal)

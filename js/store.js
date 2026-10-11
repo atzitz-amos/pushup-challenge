@@ -163,7 +163,7 @@ export const store = {
     return state.entries.filter((e) => sameName(e.user, user)).sort(byTime);
   },
 
-  // Everyone's entries (for the sisters page).
+  // Everyone's entries (for the team page).
   allEntries() {
     return [...state.entries].sort(byTime);
   },

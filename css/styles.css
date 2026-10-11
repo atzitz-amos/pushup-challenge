@@ -736,7 +736,7 @@ button.cal-tile:active { transform: scale(.9); }
   }
 }
 
-/* ---------- Sisters ---------- */
+/* ---------- Team ---------- */
 .sis-status { margin: 0; color: var(--muted); font-size: 13px; }
 .sis {
   display: flex; flex-direction: column; gap: 14px;

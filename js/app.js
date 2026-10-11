@@ -6,7 +6,7 @@ import { createRing } from './ring.js';
 import * as fx from './effects.js';
 import { registerPanel, openPanel, closePanel, preparePanel, settlePanel, sync as syncPanels, createSheet } from './nav.js';
 import { renderCalendar } from './calendar.js';
-import { renderSisters } from './sisters.js';
+import { renderTeam } from './team.js';
 import { onVerticalSwipe, onHorizontalSwipe } from './gestures.js';
 
 const $ = (s) => document.querySelector(s);
@@ -43,8 +43,8 @@ const els = {
   demoReset: $('#demoReset'),
   calendarPanel: $('#panel-calendar'),
   calendarBody: $('#calendarBody'),
-  sistersPanel: $('#panel-sisters'),
-  sistersBody: $('#sistersBody'),
+  teamPanel: $('#panel-team'),
+  teamBody: $('#teamBody'),
   app: $('.app'),
 };
 
@@ -488,21 +488,21 @@ function renderSoundToggle() {
 }
 
 let calendar = null;
-/* ---------- Sharing: sync with Supabase and the sisters page ---------- */
+/* ---------- Sharing: sync with Supabase and the team page ---------- */
 
 let syncOk = true;
 const ownSignature = (list) => list.map((e) => `${e.id}:${e.count}`).join('|');
 
-function sistersStatus() {
-  if (DEMO) return 'Demo: Lea and Mia are pretend sisters.';
-  if (!store.isRemote) return 'Only you for now. Connect Supabase (see README) to see your sisters.';
+function teamStatus() {
+  if (DEMO) return 'Demo: Lea and Mia are pretend teammates.';
+  if (!store.isRemote) return 'Only you for now. Connect Supabase (see README) to see everyone.';
   if (!syncOk) return 'Offline · showing the last saved progress.';
   if (!store.lastSync) return 'Loading…';
   return `Updated ${timeFmt.format(store.lastSync)}`;
 }
 
-function renderSistersPanel() {
-  renderSisters(els.sistersBody, { entries: store.allEntries(), me: user, status: sistersStatus() });
+function renderTeamPanel() {
+  renderTeam(els.teamBody, { entries: store.allEntries(), me: user, status: teamStatus() });
 }
 
 // Pulls everyone's latest entries. Today's page is only rebuilt when your own
@@ -515,16 +515,16 @@ function refreshFromServer() {
     const res = await store.sync();
     syncOk = res.ok;
     if (res.ok && ownSignature(await store.entries(user)) !== before && !today?.saving) await load(current);
-    if (els.sistersPanel.classList.contains('open')) renderSistersPanel();
+    if (els.teamPanel.classList.contains('open')) renderTeamPanel();
   })().finally(() => {
     refreshing = null;
   });
   return refreshing;
 }
 
-registerPanel('sisters', {
-  el: els.sistersPanel,
-  render: renderSistersPanel,
+registerPanel('team', {
+  el: els.teamPanel,
+  render: renderTeamPanel,
   onOpen() {
     els.app.classList.add('behind');
     refreshFromServer();
