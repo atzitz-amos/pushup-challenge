@@ -568,6 +568,7 @@ function refreshFromServer() {
     syncOk = res.ok;
     const ownChanged = ownSignature(await store.entries(user)) !== before;
     if (res.ok && (ownChanged || res.rulesChanged) && !today?.saving) await load(current);
+    if (res.teamGone) showToast(`“${res.teamGone}” no longer exists`, false);
     if (els.teamPanel.classList.contains('open')) renderTeamPanel();
     if (res.rulesChanged && els.settingsPanel.classList.contains('open')) {
       settingsPage.reset(); // someone in the team changed the rules: show the new ones

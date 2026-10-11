@@ -308,6 +308,15 @@ export const store = {
         rpc('team_members', { p_code: code }),
       ]);
       if (state.team?.code !== code) return { ok: true, changed: false }; // left meanwhile
+      if (!info) {
+        // The team was deleted: drop back to having no team, keeping your own entries.
+        const gone = state.team.name;
+        state.team = null;
+        state.entries = state.entries.filter(mine);
+        state.removed = [];
+        persist();
+        return { ok: true, changed: true, rulesChanged: true, teamGone: gone };
+      }
       const beforeRules = JSON.stringify(this.rules);
       if (info) {
         state.team.name = info.name;
