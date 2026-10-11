@@ -49,11 +49,12 @@ Deno.serve(async (req) => {
   const team = teams[0] ?? { name: 'Your team', goal: 30 };
   const total = today.reduce((sum: number, e: { count: number }) => sum + e.count, 0);
   const justFinished = total >= team.goal && total - record.count < team.goal;
+  // The title is short (Android cuts long titles); the news itself goes in the body.
   const payload = JSON.stringify({
-    title: justFinished
-      ? `${record.user_name} finished today's ${team.goal}! 🎉`
-      : `${record.user_name} did ${record.count} push-ups 💪`,
-    body: justFinished ? `${team.name} · your turn?` : `${Math.min(total, team.goal)}/${team.goal} today · ${team.name}`,
+    title: `💪 ${team.name}`,
+    body: justFinished
+      ? `${record.user_name} finished all ${team.goal} push-ups today! 🎉`
+      : `${record.user_name} finished ${record.count} push-ups · ${Math.min(total, team.goal)}/${team.goal} today`,
     tag: `${record.team_code}-${record.user_name.toLowerCase()}`, // newer news from the same person replaces older
     url: './#team',
   });

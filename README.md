@@ -28,7 +28,7 @@ The public key is meant to be public. The app can't read the tables directly: it
 
 ## Notifications
 
-When someone in your team saves push-ups, teammates get a phone notification ("Lea did 15 push-ups 💪", or "Lea finished today's 30! 🎉"). Turn them on in **Settings** or from the offer on the Team page. They need the app on https (GitHub Pages); on iPhone the app must be added to the Home Screen (iOS 16.4+). While the app is open, teammates' new push-ups also show up as a short message.
+When someone in your team saves push-ups, teammates get a phone notification ("Lea finished 15 push-ups · 15/30 today", or "Lea finished all 30 push-ups today! 🎉"). Turn them on in **Settings** or from the offer on the Team page. They need the app on https (GitHub Pages); on iPhone the app must be added to the Home Screen (iOS 16.4+). While the app is open, teammates' new push-ups also show up as a short message.
 
 ### Setup (once)
 
