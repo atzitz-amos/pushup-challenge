@@ -1133,3 +1133,90 @@ button.cal-tile:active { transform: scale(.9); }
 /* Name screen */
 .onboard-card .name-label { margin-top: 4px; text-align: left; font-weight: 800; font-size: 15px; }
 .onboard-card .name-note { margin: -6px 0 2px; font-size: 13px; color: var(--muted); }
+
+/* ---------- Guided tour ---------- */
+.tour {
+  position: fixed; inset: 0; z-index: 70;
+  opacity: 0; transition: opacity .3s;
+}
+.tour.show { opacity: 1; }
+/* The spotlight: a see-through hole whose enormous shadow dims everything else. */
+.tour-spot {
+  position: absolute;
+  box-shadow: 0 0 0 200vmax rgba(3, 6, 14, .8);
+  outline: 2px solid transparent;
+  transition: left .5s var(--snap), top .5s var(--snap), width .5s var(--snap), height .5s var(--snap), border-radius .5s var(--snap);
+  pointer-events: none;
+}
+.tour-spot::after {
+  content: ""; position: absolute; inset: -3px; border-radius: inherit;
+  border: 2px solid var(--blue);
+  box-shadow: 0 0 22px rgba(56, 189, 248, .55), inset 0 0 18px rgba(167, 139, 250, .25);
+  animation: tour-pulse 1.6s ease-in-out infinite;
+}
+.tour-spot.empty::after { opacity: 0; }
+@keyframes tour-pulse {
+  50% { transform: scale(1.03); border-color: var(--purple); box-shadow: 0 0 30px rgba(167, 139, 250, .6), inset 0 0 18px rgba(52, 211, 153, .25); }
+}
+
+.tour-card {
+  position: absolute; left: 50%;
+  width: min(calc(100vw - 32px), 380px);
+  transform: translateX(-50%);
+  padding: 18px 18px 14px;
+  border-radius: 24px;
+  background: linear-gradient(160deg, #162039, #10172b);
+  border: 1px solid rgba(255, 255, 255, .12);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, .55);
+  transition: top .5s var(--snap), bottom .5s var(--snap);
+}
+.tour-card::before { /* the green, blue and purple edge */
+  content: ""; position: absolute; left: 18px; right: 18px; top: -1px; height: 3px;
+  border-radius: 3px; background: var(--grad);
+}
+.tour-card.swap .tour-emoji, .tour-card.swap .tour-title, .tour-card.swap .tour-text {
+  animation: tour-in .45s var(--snap) both;
+}
+.tour-card.swap .tour-title { animation-delay: .04s; }
+.tour-card.swap .tour-text { animation-delay: .08s; }
+@keyframes tour-in { from { opacity: 0; transform: translateY(8px); } }
+.tour-emoji { font-size: 30px; line-height: 1; }
+.tour-title { margin: 8px 0 4px; font-size: 20px; font-weight: 800; letter-spacing: -.01em; }
+.tour-text { margin: 0; color: #b9c1dc; font-size: 15px; line-height: 1.4; }
+.tour-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 14px; }
+.tour-skip { padding: 10px 4px; color: var(--muted); font-weight: 700; font-size: 15px; }
+.tour-dots { display: flex; gap: 6px; }
+.tour-dots i {
+  width: 7px; height: 7px; border-radius: 4px; background: rgba(255, 255, 255, .2);
+  transition: width .35s var(--snap), background .35s;
+}
+.tour-dots i.on { width: 20px; background: var(--grad); }
+.tour-next {
+  padding: 11px 18px; border-radius: 14px;
+  background: var(--grad); color: #06101f; font-weight: 800; font-size: 15px;
+  box-shadow: 0 6px 18px rgba(56, 189, 248, .3);
+}
+.tour-next:active { transform: scale(.95); }
+
+/* A finger miming the gesture to make. */
+.tour-hand {
+  position: absolute; z-index: 1;
+  font-size: 40px; line-height: 1;
+  margin: -20px 0 0 -20px;
+  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, .6));
+  pointer-events: none;
+}
+.tour-hand.swipe-x { animation: tour-swipe-x 2s var(--ease-out) infinite; }
+.tour-hand.swipe-up { animation: tour-swipe-up 2s var(--ease-out) infinite; }
+@keyframes tour-swipe-x {
+  0% { opacity: 0; transform: translateX(70px); }
+  15% { opacity: 1; transform: translateX(70px); }
+  60% { opacity: 1; transform: translateX(-70px); }
+  80%, 100% { opacity: 0; transform: translateX(-70px); }
+}
+@keyframes tour-swipe-up {
+  0% { opacity: 0; transform: translateY(60px); }
+  15% { opacity: 1; transform: translateY(60px); }
+  60% { opacity: 1; transform: translateY(-110px); }
+  80%, 100% { opacity: 0; transform: translateY(-110px); }
+}

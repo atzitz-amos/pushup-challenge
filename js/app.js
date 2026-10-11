@@ -11,6 +11,7 @@ import { createSettingsPage } from './settings.js';
 import { pushStatus, wantsPush, enablePush, registerPush, unregisterPush, disablePush } from './push.js';
 import { onVerticalSwipe, onHorizontalSwipe } from './gestures.js';
 import { t, getLang, setLang, dateFmt, capitalize, translatePage } from './i18n.js';
+import { startTour } from './tour.js';
 
 const $ = (s) => document.querySelector(s);
 // The daily goal in effect (yours, or your team's); kept in step with CONFIG by useRules().
@@ -49,6 +50,8 @@ const els = {
   soundToggle: $('#soundToggle'),
   soundIcon: $('#soundIcon'),
   demoReset: $('#demoReset'),
+  tourBtn: $('#tourBtn'),
+  topStats: $('.top-stats'),
   calendarPanel: $('#panel-calendar'),
   calendarBody: $('#calendarBody'),
   teamPanel: $('#panel-team'),
@@ -651,6 +654,7 @@ const settingsPage = createSettingsPage(els.settingsBody, {
   async startOver() {
     await disablePush();
     await store.startOver();
+    setTourSeen(false);
     user = null;
     closePanel();
     hideToast();
@@ -772,6 +776,82 @@ onVerticalSwipe(els.calendarPanel, {
   },
 });
 
+/* ---------- Guided tour ---------- */
+
+// Shown once after picking a name (and to anyone who hasn't seen it yet);
+// "How it works" in the menu replays it.
+const TOUR_KEY = DEMO ? 'pushups.demo.tour' : 'pushups.tour';
+const tourSeen = () => { try { return !!localStorage.getItem(TOUR_KEY); } catch { return true; } };
+function setTourSeen(seen) {
+  try {
+    if (seen) localStorage.setItem(TOUR_KEY, '1');
+    else localStorage.removeItem(TOUR_KEY);
+  } catch { /* ignore */ }
+}
+
+function showTour() {
+  if (!user || !today) return; // no today's page before or after the challenge
+  hideToast();
+  goTo(todayIndex, false);
+  const done = today.total >= goal;
+  startTour([
+    {
+      emoji: '💪',
+      target: () => today.page.querySelector('.ring-wrap'),
+      shape: 'round',
+      pad: 0,
+      title: t('tour.ring.title'),
+      text: t('tour.ring.text', { goal }),
+    },
+    {
+      emoji: '🎡',
+      target: () => (done ? today.done : today.logger),
+      title: t('tour.log.title'),
+      text: t(done ? 'tour.log.doneText' : 'tour.log.text'),
+    },
+    {
+      emoji: '🔥',
+      target: () => els.topStats,
+      radius: 20,
+      title: t('tour.stats.title'),
+      text: t('tour.stats.text', { n: CONFIG.allowedMisses }),
+    },
+    {
+      emoji: '👈',
+      target: () => today.page.querySelector('.page-head'),
+      gesture: 'swipe-x',
+      title: t('tour.days.title'),
+      text: t('tour.days.text'),
+    },
+    {
+      emoji: '📅',
+      target: null,
+      gesture: 'swipe-up',
+      title: t('tour.calendar.title'),
+      text: t('tour.calendar.text'),
+    },
+    {
+      emoji: '👥',
+      target: () => els.menuBtn,
+      shape: 'round',
+      pad: 8,
+      title: t('tour.menu.title'),
+      text: t('tour.menu.text'),
+    },
+  ], {
+    onEnd() {
+      setTourSeen(true);
+      fx.haptic(8);
+    },
+  });
+}
+
+// After a name was just picked or on start: the tour first, unless an invite link opens the team page.
+function maybeShowTour() {
+  if (inviteCode || tourSeen()) return;
+  setTimeout(showTour, 450);
+}
+
 /* ---------- Setup ---------- */
 
 els.undo.addEventListener('click', undo);
@@ -785,6 +865,10 @@ els.menu.addEventListener('click', (e) => {
   if (!item) return;
   menu.close();
   openPanel(item.dataset.panel);
+});
+els.tourBtn.addEventListener('click', () => {
+  menu.close();
+  setTimeout(showTour, 380); // once the menu is out of the way
 });
 els.soundToggle.addEventListener('click', () => {
   fx.setMuted(!fx.isMuted());
@@ -836,6 +920,7 @@ els.onboardForm.addEventListener('submit', async (e) => {
   setTimeout(() => (els.onboard.hidden = true), 400);
   await load();
   refreshFromServer();
+  maybeShowTour();
   openInvite();
 });
 
@@ -862,6 +947,7 @@ if (DEMO) {
   els.demoReset.addEventListener('click', async () => {
     menu.close();
     await store.reset();
+    setTourSeen(false);
     user = null;
     hideToast();
     els.nameInput.value = '';
@@ -876,6 +962,7 @@ user = await store.getUser();
 if (user) {
   await load(); // instantly, from what is saved on this phone
   refreshFromServer();
+  maybeShowTour();
   openInvite();
 } else {
   showOnboarding();
