@@ -12,7 +12,8 @@
   --gap: clamp(8px, 1.8dvh, 16px);
   --hello: 28px;
   --nav: 40px;
-  --ring: min(66vw, 31dvh, 280px);
+  --ring: min(70vw, 34dvh, 300px);
+  --head-space: clamp(6px, 3dvh, 28px); /* extra room between the header and the day */
   --count: clamp(56px, 11dvh, 84px);
   --item-h: 64px;
   --wheel-font: 40px;
@@ -169,7 +170,7 @@ button:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
   position: relative; /* offset parent for the pages' offsetLeft */
   flex: 1; min-height: 0;
   display: flex;
-  margin: 0 -16px;
+  margin: var(--head-space) -16px 0;
   overflow-x: auto; overflow-y: hidden;
   scroll-snap-type: x mandatory;
   overscroll-behavior-x: contain;
@@ -326,9 +327,12 @@ button:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 .ring-delta.show { opacity: 1; transform: none; }
 
 /* ---------- Wheel ---------- */
-.logger { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: var(--gap); }
+/* Wheel + button sit at the bottom; spare height goes between the ring and the wheel. */
+.logger { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: flex-end; gap: var(--gap); }
 .wheel-card {
-  flex: 1; min-height: calc(var(--item-h) * 1.6); /* the wheel shrinks before the save button is pushed off */
+  flex: 1;
+  min-height: calc(var(--item-h) * 1.6); /* the wheel shrinks before the save button is pushed off */
+  max-height: calc(var(--item-h) * 3.8);
   display: flex; flex-direction: column;
   border-radius: 28px;
   background: var(--card); border: 1px solid var(--stroke);
@@ -699,6 +703,7 @@ button.cal-tile:active { transform: scale(.9); }
     --hello: 21px;
     --nav: 32px;
     --ring: min(52vw, 28dvh, 200px);
+    --head-space: 2px;
     --count: 40px;
     --item-h: 44px;
     --wheel-font: 26px;
