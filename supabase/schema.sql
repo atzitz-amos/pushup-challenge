@@ -25,12 +25,12 @@ alter table public.entries add column if not exists team_code text references pu
 alter table public.teams add column if not exists goal int not null default 30;
 alter table public.teams add column if not exists allowed_misses int not null default 2;
 alter table public.teams add column if not exists end_date date not null default '2026-12-24';
-do $ begin
+do $$ begin
   alter table public.teams add constraint teams_goal_range check (goal between 1 and 100);
-exception when duplicate_object then null; end $;
-do $ begin
+exception when duplicate_object then null; end $$;
+do $$ begin
   alter table public.teams add constraint teams_misses_range check (allowed_misses between 0 and 30);
-exception when duplicate_object then null; end $;
+exception when duplicate_object then null; end $$;
 create index if not exists entries_team_idx on public.entries (team_code, day);
 
 -- Rows from before teams existed belong to no team; the app re-uploads them when you join one.
@@ -80,66 +80,66 @@ begin
       insert into teams (code, name) values (new_code, trim(p_name));
       exit;
     exception when unique_violation then
-      -- code already taken: draw another one
+      null; -- code already taken: draw another one
     end;
   end loop;
   return (select json_build_object('code', t.code, 'name', t.name, 'goal', t.goal,
                                     'allowed_misses', t.allowed_misses, 'end_date', t.end_date)
           from teams t where t.code = new_code);
-end $;
+end $$;
 
 -- Looks a team up by code. Returns its name and rules, or null when there is no such team.
 create or replace function public.find_team(p_code text)
 returns json
-language sql stable security definer set search_path = public as $
+language sql stable security definer set search_path = public as $$
   select json_build_object('code', t.code, 'name', t.name, 'goal', t.goal,
                            'allowed_misses', t.allowed_misses, 'end_date', t.end_date)
   from teams t where t.code = upper(trim(p_code));
-$;
+$$;
 
 -- Changes a team's rules (anyone in the team can). Returns the team like find_team.
 create or replace function public.update_team_rules(p_code text, p_goal int, p_allowed_misses int, p_end_date date)
 returns json
-language plpgsql security definer set search_path = public as $
+language plpgsql security definer set search_path = public as $$
 declare result json;
 begin
   update teams set goal = p_goal, allowed_misses = p_allowed_misses, end_date = p_end_date
   where code = upper(trim(p_code))
-  returning json_build_object('code', code, 'name', name, 'goal', goal,
-                              'allowed_misses', allowed_misses, 'end_date', end_date) into result;
+  returning json_build_object('code', teams.code, 'name', teams.name, 'goal', teams.goal,
+                              'allowed_misses', teams.allowed_misses, 'end_date', teams.end_date) into result;
   if result is null then raise exception 'Unknown team code'; end if;
   return result;
-end $;
+end $$;
 
 -- Adds a person to a team (doing it again is harmless).
 create or replace function public.join_team(p_code text, p_name text)
 returns void
-language plpgsql security definer set search_path = public as $
+language plpgsql security definer set search_path = public as $$
 begin
   if not exists (select 1 from teams where code = upper(trim(p_code))) then
     raise exception 'Unknown team code';
   end if;
   insert into team_members (team_code, user_name) values (upper(trim(p_code)), trim(p_name))
   on conflict do nothing;
-end $;
+end $$;
 
 -- Removes a person from a team. Their past entries stay but are no longer shown.
 create or replace function public.leave_team(p_code text, p_name text)
 returns void
-language sql security definer set search_path = public as $
+language sql security definer set search_path = public as $$
   delete from team_members
   where team_code = upper(trim(p_code)) and lower(user_name) = lower(trim(p_name));
-$;
+$$;
 
 -- The members of a team, in the order they joined.
 create or replace function public.team_members(p_code text)
 returns table (user_name text, joined_at timestamptz)
-language sql stable security definer set search_path = public as $
+language sql stable security definer set search_path = public as $$
   select m.user_name, m.joined_at
   from team_members m
   where m.team_code = upper(trim(p_code))
   order by m.joined_at;
-$;
+$$;
 
 -- All entries of a team, oldest first.
 create or replace function public.team_entries(p_code text)
