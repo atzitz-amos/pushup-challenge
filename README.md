@@ -14,7 +14,9 @@ Without setup, each phone keeps its own data. To let everyone see each other:
 
 1. Create a free project at [supabase.com](https://supabase.com).
 2. In the project, open **SQL Editor**, paste the contents of [`supabase/schema.sql`](supabase/schema.sql) and run it.
-3. Open **Project Settings → API** and copy the **Project URL** and the **anon public** key.
+3. Copy the **Project URL** and a public key. The **Connect** button at the top of the dashboard shows both.
+   - The URL is `https://<project-id>.supabase.co`; the project id is the last part of the dashboard address (`supabase.com/dashboard/project/<project-id>`).
+   - The key is under **Project Settings → API Keys**: the **Publishable key** (`sb_publishable_…`) or the legacy **anon public** key (`eyJ…`). Never use the secret / service_role key.
 4. Paste both into `SUPABASE` in [`js/config.js`](js/config.js), then commit and push.
 
 Everyone is identified by the name they enter, so each person should pick their own name, and use the same one on every device. Entries are saved on the phone first and uploaded in the background, so the app also works offline.

@@ -68,7 +68,9 @@ async function api(path, { method = 'GET', body, prefer } = {}) {
       signal: ctrl.signal,
       headers: {
         apikey: SUPABASE.anonKey,
-        Authorization: `Bearer ${SUPABASE.anonKey}`,
+        // Legacy anon keys are JWTs (eyJ…) and also go in Authorization; the newer
+        // publishable keys (sb_publishable_…) must only be sent as apikey.
+        ...(SUPABASE.anonKey.startsWith('eyJ') ? { Authorization: `Bearer ${SUPABASE.anonKey}` } : {}),
         'Content-Type': 'application/json',
         ...(prefer ? { Prefer: prefer } : {}),
       },
