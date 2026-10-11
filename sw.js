@@ -1,5 +1,5 @@
 // Network-first service worker: always fresh when online, still opens offline.
-const CACHE = 'pushups-v19';
+const CACHE = 'pushups-v20';
 const SHELL = [
   './',
   'index.html',
@@ -40,12 +40,14 @@ self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
   // Shared data (Supabase) is cached by the app itself; let those requests through untouched.
   if (e.request.url.includes('/rest/v1/')) return;
-  // Own files: always revalidate with the server, so an update shows up on the next open
-  // instead of whenever the HTTP cache expires.
+  // Own files, the page included: always revalidate with the server. Otherwise the
+  // HTTP cache (10 minutes on GitHub Pages) can serve an old page with new scripts,
+  // and the app fails to start.
   const sameOrigin = new URL(e.request.url).origin === self.location.origin;
-  const request = sameOrigin && e.request.mode !== 'navigate'
-    ? new Request(e.request, { cache: 'no-cache' })
-    : e.request;
+  const request = !sameOrigin ? e.request
+    : e.request.mode === 'navigate'
+      ? new Request(e.request.url, { cache: 'no-cache', credentials: 'same-origin' }) // a navigate request can't be copied with options
+      : new Request(e.request, { cache: 'no-cache' });
   e.respondWith(
     fetch(request)
       .then((res) => {

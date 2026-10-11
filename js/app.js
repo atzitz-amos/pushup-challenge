@@ -874,6 +874,6 @@ if (user) {
   showOnboarding();
 }
 
-if ('serviceWorker' in navigator && !DEMO) {
-  navigator.serviceWorker.register('sw.js').catch(() => {});
-}
+// Started fine: no rescue reload needed (index.html registers the service worker).
+window.__booted = true;
+try { sessionStorage.removeItem('pushups.reloaded'); } catch { /* ignore */ }

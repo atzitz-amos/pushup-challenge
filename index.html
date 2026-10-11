@@ -14,6 +14,26 @@
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icons/icon-180.png">
   <link rel="stylesheet" href="css/styles.css">
+  <script>
+    // Right after an update the phone can still hold a mix of old and new files, which
+    // stops the app from starting. The service worker (registered here, before the app
+    // runs) then revalidates everything; if the app hasn't started after a few seconds,
+    // reload once so it gets a matching set of files.
+    window.__booted = false;
+    setTimeout(function () {
+      if (window.__booted) return;
+      try {
+        if (sessionStorage.getItem('pushups.reloaded')) return;
+        sessionStorage.setItem('pushups.reloaded', '1');
+      } catch (e) { return; }
+      location.reload();
+    }, 4000);
+    addEventListener('load', function () {
+      if ('serviceWorker' in navigator && !window.PUSHUP_DEMO && !/[?&]demo/.test(location.search)) {
+        navigator.serviceWorker.register('sw.js').catch(function () {});
+      }
+    });
+  </script>
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.js" defer></script>
   <script type="module" src="js/app.js"></script>
 </head>
