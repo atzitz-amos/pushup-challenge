@@ -145,9 +145,15 @@ const sameThread = (c, owner, day) => c.day === day && sameName(c.owner, owner);
 
 // Uploads queued reactions, comments and removals (same idea as flush()).
 let flushingCheers = null;
-function flushCheers() {
-  if (!SERVER || !state.team || !FEATURES.cheers) return Promise.resolve();
-  flushingCheers ||= (async () => {
+async function flushCheers() {
+  if (!SERVER || !state.team || !FEATURES.cheers) return;
+  // An upload already running may have started before the latest cheers were written:
+  // wait for it, then upload whatever is still queued.
+  if (flushingCheers) {
+    await flushingCheers.catch(() => {});
+    return flushCheers();
+  }
+  flushingCheers = (async () => {
     const code = state.team.code;
     const up = state.cheers.filter((c) => c.team === code && !c.up && wroteIt(c));
     if (up.length) {
@@ -464,6 +470,11 @@ export const store = {
     if (!DEMO) state.cheersRemoved.push(id);
     persist();
     flushCheers().catch((err) => console.warn('Cheer removal failed, will retry:', err));
+  },
+
+  // Resolves once your queued cheers are uploaded (or the upload failed: they stay queued).
+  uploadCheers() {
+    return flushCheers().catch(() => {});
   },
 
   // Whether a cheer is news for you: about your day, or a comment in a thread you wrote in.

@@ -667,6 +667,8 @@ function cheersChanged() {
 
 // After a sync: refresh what shows cheers, and tell about new ones for you.
 function cheersSynced(res) {
+  // What arrives while a thread is open is being read right now.
+  if (res.changed && thread.isOpen && document.visibilityState === 'visible') store.markCheersSeen();
   if (res.changed) cheersChanged();
   const news = res.news.filter((c) => !(thread.isOpen && thread.isShowing(c.owner, c.day)));
   if (!news.length || document.visibilityState !== 'visible') return;
@@ -688,6 +690,8 @@ const thread = createThread(els.thread, createSheet(els.thread), {
       store.addComment(owner, day, text);
       fx.haptic(8);
       cheersChanged();
+      // The bubble shows as "sending" until the server has it.
+      store.uploadCheers().then(() => thread.isOpen && thread.render());
     },
     remove(id) {
       store.removeCheer(id);
