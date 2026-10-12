@@ -6,9 +6,13 @@
 // Entry: { id, user, date, count, ts, team, up }
 //   team: code of the team it belongs to (null before joining one)
 //   up:   whether it is stored on the server for that team
+//
+// Cheer (a reaction or a comment on someone's day, only inside a team):
+//   { id, team, owner, day, author, emoji, body, ts, up }
+//   owner: whose day it is; emoji for a reaction, body for a comment (the other is null)
 
-import { DEMO, SUPABASE, DEFAULT_RULES } from './config.js';
-import { mockEntries, DEMO_TEAM, DEMO_MATES } from './demo.js';
+import { DEMO, SUPABASE, DEFAULT_RULES, FEATURES } from './config.js';
+import { mockEntries, mockCheers, DEMO_TEAM, DEMO_MATES } from './demo.js';
 
 const KEY = DEMO ? 'pushups.demo' : 'pushups.v1'; // demo data never touches real data
 const SERVER = !DEMO && !!(SUPABASE.url && SUPABASE.anonKey);
@@ -42,6 +46,14 @@ function load() {
   s.entries ||= [];
   s.removed ||= []; // ids undone here but not deleted on the server yet
   s.team ||= null;
+  s.cheers ||= [];
+  s.cheersRemoved ||= []; // ids removed here but not deleted on the server yet
+  s.cheersSeen ||= 0; // when the team page was last opened (for the unread dot)
+  // Demos started before cheers existed get the sample ones too.
+  if (DEMO && s.user && !s.cheersDemo) {
+    s.cheers = mockCheers(s.user);
+    s.cheersDemo = true;
+  }
   // Data from before teams: nothing is in a team yet, so everything uploads on joining one.
   if (!s.v2) {
     for (const e of s.entries) {
@@ -121,6 +133,40 @@ function flush() {
   return flushing;
 }
 
+const toCheerRow = (c) => ({
+  id: c.id, owner: c.owner, day: c.day, author: c.author, emoji: c.emoji ?? null, body: c.body ?? null,
+  created_at: new Date(c.ts).toISOString(),
+});
+const fromCheerRow = (r, team) => ({
+  id: r.id, team, owner: r.owner, day: r.day, author: r.author, emoji: r.emoji, body: r.body, ts: Date.parse(r.created_at), up: true,
+});
+const wroteIt = (c) => sameName(c.author, state.user);
+const sameThread = (c, owner, day) => c.day === day && sameName(c.owner, owner);
+
+// Uploads queued reactions, comments and removals (same idea as flush()).
+let flushingCheers = null;
+function flushCheers() {
+  if (!SERVER || !state.team || !FEATURES.cheers) return Promise.resolve();
+  flushingCheers ||= (async () => {
+    const code = state.team.code;
+    const up = state.cheers.filter((c) => c.team === code && !c.up && wroteIt(c));
+    if (up.length) {
+      await rpc('add_cheers', { p_code: code, p_rows: up.map(toCheerRow) });
+      for (const c of up) c.up = true;
+      persist();
+    }
+    if (state.cheersRemoved.length) {
+      const ids = [...state.cheersRemoved];
+      await rpc('remove_cheers', { p_code: code, p_name: state.user, p_ids: ids });
+      state.cheersRemoved = state.cheersRemoved.filter((id) => !ids.includes(id));
+      persist();
+    }
+  })().finally(() => {
+    flushingCheers = null;
+  });
+  return flushingCheers;
+}
+
 // Team rules as the server sends them → the app's rules object.
 const rulesOf = (t) => (t && t.goal != null
   ? { goal: t.goal, allowedMisses: t.allowed_misses, endDate: t.end_date }
@@ -178,13 +224,15 @@ export const store = {
     if (DEMO && !state.entries.length) {
       state.entries = mockEntries(name);
       state.team = { ...DEMO_TEAM };
+      state.cheers = mockCheers(name);
+      state.cheersDemo = true;
     }
     persist();
   },
 
   // Demo only: forget the name and sample data so the demo starts over.
   async reset() {
-    state = { entries: [], removed: [], team: null, v2: true };
+    state = { entries: [], removed: [], team: null, v2: true, cheers: [], cheersRemoved: [], cheersSeen: 0 };
     persist();
   },
 
@@ -296,6 +344,9 @@ export const store = {
       e.team = team.code;
     }
     state.removed = [];
+    if (!DEMO) state.cheers = [];
+    state.cheersRemoved = [];
+    this.cheersSynced = false;
     persist();
     if (SERVER) await this.sync();
   },
@@ -308,6 +359,8 @@ export const store = {
     state.team = null;
     if (!DEMO) state.entries = state.entries.filter(mine);
     state.removed = [];
+    if (!DEMO) state.cheers = [];
+    state.cheersRemoved = [];
     persist();
   },
 
@@ -356,10 +409,103 @@ export const store = {
       state.entries = [...server, ...waiting];
       persist();
       this.lastSync = Date.now();
-      return { ok: true, changed: signature(state.entries) !== before, rulesChanged, news };
+      const cheers = await this.syncCheers();
+      return { ok: true, changed: signature(state.entries) !== before, rulesChanged, news, cheers };
     } catch (err) {
       console.warn('Sync failed:', err);
       return { ok: false, changed: false };
+    }
+  },
+
+  /* --- Cheers: reactions and comments on each other's days --- */
+
+  cheersSynced: false,
+
+  // Cheers are available: the feature is on and you are in a team.
+  get cheersOn() {
+    return FEATURES.cheers && !!state.team;
+  },
+
+  // The team's reactions and comments, oldest first.
+  cheers() {
+    if (!this.cheersOn) return [];
+    return state.cheers.filter((c) => c.team === state.team.code).sort(byTime);
+  },
+
+  // Adds your reaction to someone's day, or takes it back. Returns true when added.
+  toggleReaction(owner, day, emoji) {
+    const existing = this.cheers().find((c) => sameThread(c, owner, day) && wroteIt(c) && c.emoji === emoji);
+    if (existing) {
+      this.removeCheer(existing.id);
+      return false;
+    }
+    this.addCheer({ owner, day, emoji, body: null });
+    return true;
+  },
+
+  addComment(owner, day, body) {
+    return this.addCheer({ owner, day, emoji: null, body: body.trim().slice(0, 300) });
+  },
+
+  addCheer({ owner, day, emoji, body }) {
+    const cheer = { id: uid(), team: state.team.code, owner, day, author: state.user, emoji, body, ts: Date.now(), up: DEMO };
+    state.cheers.push(cheer);
+    persist();
+    flushCheers().catch((err) => console.warn('Cheer upload failed, will retry:', err));
+    return cheer;
+  },
+
+  // Removes one of your reactions or comments.
+  removeCheer(id) {
+    const i = state.cheers.findIndex((c) => c.id === id && wroteIt(c));
+    if (i < 0) return;
+    state.cheers.splice(i, 1);
+    // Also when not uploaded yet: an upload may be on its way (deleting a missing id is harmless).
+    if (!DEMO) state.cheersRemoved.push(id);
+    persist();
+    flushCheers().catch((err) => console.warn('Cheer removal failed, will retry:', err));
+  },
+
+  // Whether a cheer is news for you: about your day, or a comment in a thread you wrote in.
+  concernsMe(c) {
+    if (wroteIt(c)) return false;
+    if (sameName(c.owner, state.user)) return true;
+    return !!c.body && this.cheers().some((x) => x.body && wroteIt(x) && sameThread(x, c.owner, c.day));
+  },
+
+  // Cheers for you that arrived since the team page was last opened.
+  unreadCheers() {
+    return this.cheers().filter((c) => c.ts > state.cheersSeen && this.concernsMe(c)).length;
+  },
+
+  markCheersSeen() {
+    state.cheersSeen = Date.now();
+    persist();
+  },
+
+  // Uploads your queued cheers and reloads the team's. Returns { ok, changed, news }:
+  // news are new cheers for you (not on the first load).
+  async syncCheers() {
+    const none = { ok: true, changed: false, news: [] };
+    if (!SERVER || !this.cheersOn) return none;
+    const code = state.team.code;
+    try {
+      await flushCheers();
+      const rows = await rpc('team_cheers', { p_code: code });
+      if (state.team?.code !== code) return none;
+      const sig = (list) => list.map((c) => c.id).sort().join('|');
+      const before = sig(state.cheers);
+      const known = new Set(state.cheers.map((c) => c.id));
+      const server = rows.map((r) => fromCheerRow(r, code)).filter((c) => !state.cheersRemoved.includes(c.id));
+      const waiting = state.cheers.filter((c) => c.team === code && wroteIt(c) && !c.up && !server.some((s) => s.id === c.id));
+      state.cheers = [...server, ...waiting];
+      const news = this.cheersSynced ? server.filter((c) => !known.has(c.id) && this.concernsMe(c)) : [];
+      this.cheersSynced = true;
+      persist();
+      return { ok: true, changed: sig(state.cheers) !== before, news };
+    } catch (err) {
+      console.warn('Cheers sync failed:', err);
+      return { ok: false, changed: false, news: [] };
     }
   },
 };

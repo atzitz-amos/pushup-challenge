@@ -39,6 +39,18 @@ When someone in your team saves push-ups, teammates get a phone notification ("L
 
 Only fresh saves notify: history uploaded when someone joins a team, or saves that reach the server much later, stay quiet.
 
+## Cheers (reactions and comments)
+
+Teammates can react (🔥 💪 👏 😂 ❤️) and comment on each other's days: from the **Cheer them on** cards on the Team page, or the little pill on your own day cards. A reaction notifies the person whose day it is; a comment notifies them and everyone else who commented on that day.
+
+While it is being tried out, it is off unless a phone opens the app once with `?cheers` (`?cheers=0` turns it off again). Demo mode always has it.
+
+### Setup (once)
+
+1. Run [`supabase/cheers.sql`](supabase/cheers.sql) in the SQL editor. It only adds a table and functions, so the app people use now is not affected. (A new project gets the same from `schema.sql`.)
+2. **Edge Functions → Deploy a new function → Via Editor**: name it `notify-cheer`, paste [`supabase/functions/notify-cheer/index.ts`](supabase/functions/notify-cheer/index.ts) and deploy. It uses the same secrets as `notify-team`.
+3. **Integrations → Database Webhooks → Create a new hook**: table `cheers`, event **Insert**, type **Supabase Edge Functions**, function `notify-cheer`, and under HTTP headers click **Add auth header with service key**.
+
 ## Testing on a phone over Wi-Fi
 
 ```

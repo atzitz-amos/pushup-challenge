@@ -6,6 +6,7 @@ import { computeStats, totalsByDay, dayKey, addDays, parseDay } from './stats.js
 import { sameName, normalizeCode } from './store.js';
 import * as fx from './effects.js';
 import { t, dateFmt, num } from './i18n.js';
+import { feed } from './cheers.js';
 const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 function el(tag, cls, text) {
@@ -217,8 +218,9 @@ function leaderRow(p, expanded, onToggle) {
 
 /* ---------- Page ---------- */
 
-// actions: { lookup(code) → {team, members} | null, create(name) → team, join(team), leave(), enablePush(), dismissPush() }
-// getData(): { team, entries, members, me, status, available, inviteCode, pushOffer }
+// actions: { lookup(code) → {team, members} | null, create(name) → team, join(team), leave(), enablePush(), dismissPush(),
+//            react(owner, day, emoji) → added?, openThread(owner, day) }
+// getData(): { team, entries, members, me, status, available, inviteCode, pushOffer, cheersOn, cheers }
 export function createTeamPage(root, { getData, actions }) {
   // Local UI state that survives re-renders (inputs, errors, confirmations).
   const ui = {
@@ -226,6 +228,8 @@ export function createTeamPage(root, { getData, actions }) {
     expanded: null, // name of the leaderboard row that is open
     animated: false, // the opening animation already ran since the page was opened
     celebrated: null, // day the "everyone's done" confetti last played
+    feedAll: false, // the cheers feed shows every card, not just the latest
+    popped: null, // { key, emoji }: the reaction chip just tapped (plays a pop)
   };
 
   const run = async (fn) => {
@@ -396,6 +400,25 @@ export function createTeamPage(root, { getData, actions }) {
 
     wrap.appendChild(hero(list));
 
+    // Reactions and comments on everyone's last days.
+    if (data.cheersOn) {
+      wrap.appendChild(feed({ entries: data.entries, cheers: data.cheers, members: list.map((p) => p.name), me: data.me, ui }, {
+        react(owner, day, emoji) {
+          if (actions.react(owner, day, emoji)) {
+            ui.popped = { key: `${owner}|${day}`, emoji };
+            fx.haptic(10);
+          }
+          render();
+          ui.popped = null;
+        },
+        open: (owner, day) => actions.openThread(owner, day),
+        toggleAll() {
+          ui.feedAll = !ui.feedAll;
+          render();
+        },
+      }));
+    }
+
     if (list.length > 1) {
       wrap.appendChild(podium(list));
     } else {
@@ -475,7 +498,7 @@ export function createTeamPage(root, { getData, actions }) {
   return {
     render,
     reset() {
-      Object.assign(ui, { error: '', confirm: null, leaving: false, busy: false, animated: false, expanded: null });
+      Object.assign(ui, { error: '', confirm: null, leaving: false, busy: false, animated: false, expanded: null, feedAll: false });
     },
   };
 }

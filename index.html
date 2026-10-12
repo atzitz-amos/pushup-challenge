@@ -155,6 +155,22 @@
     </div>
   </div>
 
+  <!-- One person's day: reactions and comments (opened from the team page or your day cards). -->
+  <div class="sheet-backdrop thread-backdrop" id="thread" hidden>
+    <div class="sheet thread" role="dialog" aria-label="Reactions and comments" data-i18n-aria="cheer.thread">
+      <div class="sheet-grab" aria-hidden="true"></div>
+      <header class="thread-head"></header>
+      <div class="thread-reactions"></div>
+      <div class="thread-list"></div>
+      <form class="thread-form">
+        <input type="text" maxlength="300" enterkeyhint="send" autocomplete="off" placeholder="Write a comment…" data-i18n-ph="cheer.placeholder">
+        <button type="submit" disabled aria-label="Send" data-i18n-aria="cheer.send">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5.5 11.5L12 5l6.5 6.5"/></svg>
+        </button>
+      </form>
+    </div>
+  </div>
+
   <!-- Slides up from the bottom (it is opened by swiping up); swipe down or ✕ to close. -->
   <section class="panel" id="panel-calendar" aria-label="Calendar" data-i18n-aria="cal.title" hidden>
     <div class="panel-grab" aria-hidden="true"></div>

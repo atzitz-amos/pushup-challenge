@@ -12,6 +12,7 @@ import { pushStatus, wantsPush, enablePush, registerPush, unregisterPush, disabl
 import { onVerticalSwipe, onHorizontalSwipe } from './gestures.js';
 import { t, getLang, setLang, dateFmt, capitalize, translatePage } from './i18n.js';
 import { startTour } from './tour.js';
+import { summary as cheerSummary, threadOf, createThread } from './cheers.js';
 
 const $ = (s) => document.querySelector(s);
 // The daily goal in effect (yours, or your team's); kept in step with CONFIG by useRules().
@@ -51,6 +52,7 @@ const els = {
   soundIcon: $('#soundIcon'),
   demoReset: $('#demoReset'),
   tourBtn: $('#tourBtn'),
+  thread: $('#thread'),
   topStats: $('.top-stats'),
   calendarPanel: $('#panel-calendar'),
   calendarBody: $('#calendarBody'),
@@ -102,7 +104,7 @@ function renderHeader() {
   els.avatar.textContent = els.menuAvatar.textContent = initial;
   els.menuName.textContent = user;
   els.menuSub.textContent = t('menu.sub', { day: stats.dayIndex, total: stats.totalDays, streak: stats.streak });
-  els.teamMenuSub.textContent = store.team ? store.team.name : t('menu.teamSub');
+  renderUnread();
 }
 
 /* ---------- Day pages ---------- */
@@ -226,12 +228,15 @@ function buildPages(entries) {
       el.classList.add('today');
       el.querySelector('.of').textContent = t('day.ofToday', { goal });
       today = createLogger({ key, total: dayTotal, page: el, ring, count: countEl, body });
+      today.done.querySelector('.done-card').appendChild(cheersSlot(key));
     } else if (rel < 0) {
       el.classList.add('past');
       el.classList.toggle('completed', dayTotal >= goal);
       ring.set(dayTotal / goal);
       countEl.textContent = dayTotal;
-      body.appendChild(pastSummary(dayTotal, sessions, run));
+      const card = pastSummary(dayTotal, sessions, run);
+      card.appendChild(cheersSlot(key));
+      body.appendChild(card);
     } else {
       el.classList.add('future');
       countEl.textContent = i + 1;
@@ -243,6 +248,7 @@ function buildPages(entries) {
 
   els.strip.replaceChildren(...built);
   pages = built;
+  renderDayCheers();
   if (today) renderLogger(today);
 }
 
@@ -544,6 +550,8 @@ const teamPage = createTeamPage(els.teamBody, {
     available: store.hasTeams,
     inviteCode,
     pushOffer: pushStatus().supported && !wantsPush() && !pushOfferDismissed(),
+    cheersOn: store.cheersOn,
+    cheers: store.cheers(),
   }),
   actions: {
     lookup: (code) => store.lookupTeam(code),
@@ -560,6 +568,12 @@ const teamPage = createTeamPage(els.teamBody, {
     dismissPush() {
       try { localStorage.setItem('pushups.notifyOffer', 'dismissed'); } catch { /* ignore */ }
     },
+    react(owner, day, emoji) {
+      const added = store.toggleReaction(owner, day, emoji);
+      renderDayCheers();
+      return added;
+    },
+    openThread: (owner, day) => thread.open(owner, day),
     async join(team) {
       await store.joinTeam(team); // uploads your history to the team, then syncs
       registerPush(store.team, user).catch((err) => console.warn('Notifications not registered:', err));
@@ -606,6 +620,7 @@ function refreshFromServer() {
       pushRegistered = true; // once per visit: refreshes this phone's subscription on the server
       registerPush(store.team, user).catch((err) => console.warn('Notifications not registered:', err));
     }
+    if (res.cheers) cheersSynced(res.cheers);
     if (els.teamPanel.classList.contains('open')) renderTeamPanel();
     if (res.rulesChanged && els.settingsPanel.classList.contains('open')) {
       settingsPage.reset(); // someone in the team changed the rules: show the new ones
@@ -617,11 +632,94 @@ function refreshFromServer() {
   return refreshing;
 }
 
+/* ---------- Cheers: reactions and comments on each other's days ---------- */
+
+// A spot on your day cards for the cheers you got (filled by renderDayCheers).
+function cheersSlot(key) {
+  const slot = el('div', 'day-cheers-slot');
+  slot.dataset.day = key;
+  return slot;
+}
+
+function renderDayCheers() {
+  const cheers = store.cheers();
+  for (const slot of els.strip.querySelectorAll('.day-cheers-slot')) {
+    const day = slot.dataset.day;
+    const row = store.cheersOn ? cheerSummary(threadOf(cheers, user, day), () => thread.open(user, day)) : null;
+    slot.replaceChildren(...(row ? [row] : []));
+  }
+}
+
+// The dot on the menu button, and the count in the menu, for cheers you haven't seen.
+function renderUnread() {
+  const n = store.cheersOn ? store.unreadCheers() : 0;
+  els.menuBtn.classList.toggle('unread', n > 0);
+  els.teamMenuSub.textContent = n ? t('cheer.unread', { n }) : store.team ? store.team.name : t('menu.teamSub');
+}
+
+// Something changed in the cheers: update every place that shows them.
+function cheersChanged() {
+  renderDayCheers();
+  renderUnread();
+  if (thread.isOpen) thread.render();
+  if (els.teamPanel.classList.contains('open')) renderTeamPanel();
+}
+
+// After a sync: refresh what shows cheers, and tell about new ones for you.
+function cheersSynced(res) {
+  if (res.changed) cheersChanged();
+  const news = res.news.filter((c) => !(thread.isOpen && thread.isShowing(c.owner, c.day)));
+  if (!news.length || document.visibilityState !== 'visible') return;
+  const c = news.at(-1);
+  const text = news.length > 1 ? t('cheer.toastMany', { n: news.length })
+    : c.body ? `${c.author}: ${c.body}` : t('cheer.toastReact', { name: c.author, emoji: c.emoji });
+  showToast(text, false);
+  fx.haptic(8);
+}
+
+const thread = createThread(els.thread, createSheet(els.thread), {
+  getData: () => ({ cheers: store.cheers(), entries: store.teamEntries(), me: user }),
+  actions: {
+    react(owner, day, emoji) {
+      if (store.toggleReaction(owner, day, emoji)) fx.haptic(10);
+      cheersChanged();
+    },
+    comment(owner, day, text) {
+      store.addComment(owner, day, text);
+      fx.haptic(8);
+      cheersChanged();
+    },
+    remove(id) {
+      store.removeCheer(id);
+      fx.haptic(12);
+      cheersChanged();
+    },
+    // While a thread is open it refreshes every few seconds, so a conversation flows.
+    opened() {
+      store.markCheersSeen();
+      renderUnread();
+      clearInterval(threadTimer);
+      threadTimer = setInterval(() => {
+        if (document.visibilityState === 'visible') store.syncCheers().then(cheersSynced);
+      }, 5000);
+    },
+    closed() {
+      clearInterval(threadTimer);
+      cheersChanged();
+    },
+  },
+});
+let threadTimer = 0;
+
 registerPanel('team', {
   el: els.teamPanel,
   render: renderTeamPanel,
   onOpen() {
     els.app.classList.add('behind');
+    if (store.cheersOn) {
+      store.markCheersSeen();
+      renderUnread();
+    }
     refreshFromServer();
   },
   onClose() {
