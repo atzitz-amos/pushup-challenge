@@ -179,75 +179,103 @@ export function celebrateConfetti() {
   }, 250);
 }
 
-/* ---------- Reaction burst ---------- */
+/* ---------- Reaction effect ---------- */
 
-// Colours that go with each reaction's emoji.
-const BURST_COLORS = {
-  '🔥': ['#fb923c', '#f43f5e', '#fde047'],
-  '💪': ['#fbbf24', '#34d399', '#38bdf8'],
-  '👏': ['#fde047', '#38bdf8', '#a78bfa'],
-  '😂': ['#fde047', '#34d399', '#38bdf8'],
-  '❤️': ['#f43f5e', '#f472b6', '#a78bfa'],
+// Like Discord's super reactions: Google's animated version of the emoji (Noto Emoji
+// Animation, CC BY 4.0, copied into emoji/) pops out of the chip and plays, while copies
+// of the emoji burst out with physics and sparks in its colours fly around (canvas-confetti,
+// already loaded by the page). The animations and the Lottie player (from jsDelivr) are
+// loaded once, when the chat opens; the service worker keeps them.
+const REACTION_ASSETS = {
+  '🔥': { code: '1f525', colors: ['#fb923c', '#f43f5e', '#fde047'] },
+  '💪': { code: '1f4aa', colors: ['#fbbf24', '#34d399', '#38bdf8'] },
+  '👏': { code: '1f44f', colors: ['#fde047', '#38bdf8', '#a78bfa'] },
+  '😂': { code: '1f602', colors: ['#fde047', '#34d399', '#38bdf8'] },
+  '❤️': { code: '2764_fe0f', colors: ['#f43f5e', '#f472b6', '#a78bfa'] },
 };
+const LOTTIE_URL = 'https://cdn.jsdelivr.net/npm/lottie-web@5.12.2/build/player/lottie_light.min.js';
+const BIG_SIZE = 150; // px, the animated emoji
+const PARTICLES = 14; // emoji copies in the burst
 
-// Like Discord's super reactions: the emoji bursts out of the chip. A big copy rises
-// and fades, a ring expands, and particles (small copies and sparks) fly out and fall.
-// small: a lighter version, for teammates' reactions arriving while you watch.
+const emojiAnimations = {}; // emoji → Lottie data
+let lottieReady = null;
+export function preloadReactions() {
+  if (lottieReady) return lottieReady;
+  lottieReady = new Promise((resolve, reject) => {
+    if (window.lottie) return resolve();
+    const s = document.createElement('script');
+    s.src = LOTTIE_URL;
+    s.onload = resolve;
+    s.onerror = reject;
+    document.head.appendChild(s);
+  }).catch((err) => console.warn('Lottie not loaded:', err));
+  for (const [emoji, { code }] of Object.entries(REACTION_ASSETS)) {
+    fetch(`emoji/${code}.json`)
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error(res.status))))
+      .then((data) => { emojiAnimations[emoji] = data; })
+      .catch((err) => console.warn(`Animated ${emoji} not loaded:`, err));
+  }
+  return lottieReady;
+}
+
+// One full-screen canvas for the confetti, above the chat.
+let fire = null;
+const emojiShapes = {};
+function confettiCannon() {
+  if (!fire && typeof window.confetti === 'function') {
+    const canvas = document.createElement('canvas');
+    canvas.className = 'reaction-fx';
+    document.body.appendChild(canvas);
+    fire = window.confetti.create(canvas, { resize: true, useWorker: true });
+  }
+  return fire;
+}
+
+// small: a lighter version (no big emoji, fewer particles), for teammates' reactions
+// arriving while you watch.
 export function reactionBurst(fromEl, emoji, { small = false } = {}) {
   if (reducedMotion() || !fromEl.isConnected) return;
   const r = fromEl.getBoundingClientRect();
-  const layer = document.createElement('div');
-  layer.className = 'burst';
-  layer.style.left = `${r.left + r.width / 2}px`;
-  layer.style.top = `${r.top + r.height / 2}px`;
-  document.body.appendChild(layer);
-  const colors = BURST_COLORS[emoji] || COLORS;
-  const add = (cls, text) => {
-    const e = document.createElement('span');
-    e.className = cls;
-    if (text) e.textContent = text;
-    layer.appendChild(e);
-    return e;
-  };
-  const center = 'translate(-50%, -50%)';
-  const anims = [];
+  const x = r.left + r.width / 2;
+  const y = r.top + r.height / 2;
+  if (!small) haptic([12, 40, 18]);
 
+  // 1. The big animated emoji pops out of the chip, plays, then floats away.
   if (!small) {
-    const big = add('burst-big', emoji);
-    anims.push(big.animate([
-      { transform: `${center} scale(.6)`, opacity: 1 },
-      { transform: 'translate(-50%, -150%) scale(3.2)', opacity: 1, offset: 0.4 },
-      { transform: 'translate(-50%, -175%) scale(3.4)', opacity: 1, offset: 0.7 },
-      { transform: 'translate(-50%, -200%) scale(2.6)', opacity: 0 },
-    ], { duration: 1000, easing: 'cubic-bezier(.2, .8, .2, 1)', fill: 'both' }));
+    const box = document.createElement('div');
+    box.className = 'reaction-big';
+    Object.assign(box.style, { left: `${x}px`, top: `${y - 6}px`, width: `${BIG_SIZE}px`, height: `${BIG_SIZE}px` });
+    document.body.appendChild(box);
+    if (window.lottie && emojiAnimations[emoji]) {
+      window.lottie.loadAnimation({ container: box, renderer: 'svg', loop: false, autoplay: true, animationData: emojiAnimations[emoji] });
+    } else {
+      box.textContent = emoji; // not loaded (yet): the plain emoji does the same move
+      box.classList.add('plain');
+    }
+    const pop = box.animate([
+      { transform: 'translate(-50%, -100%) translateY(40%) scale(.2)', opacity: 0 },
+      { transform: 'translate(-50%, -100%) scale(1.08)', opacity: 1, offset: 0.18 },
+      { transform: 'translate(-50%, -100%) scale(1)', opacity: 1, offset: 0.3 },
+      { transform: 'translate(-50%, -100%) scale(1)', opacity: 1, offset: 0.8 },
+      { transform: 'translate(-50%, -100%) translateY(-30%) scale(.8)', opacity: 0 },
+    ], { duration: 1900, easing: 'cubic-bezier(.2, .8, .2, 1)', fill: 'both' });
+    const done = () => box.remove();
+    pop.finished.then(done, done);
+    setTimeout(done, 2500); // whatever happens (e.g. the page went to the background)
   }
 
-  const ring = add('burst-ring');
-  ring.style.borderColor = colors[0];
-  anims.push(ring.animate([
-    { transform: `${center} scale(.3)`, opacity: 0.9 },
-    { transform: `${center} scale(${small ? 2.2 : 3.4})`, opacity: 0 },
-  ], { duration: small ? 450 : 600, easing: 'cubic-bezier(.2, .8, .2, 1)', fill: 'both' }));
-
-  const n = small ? 8 : 20;
-  for (let i = 0; i < n; i++) {
-    const angle = (i / n) * Math.PI * 2 + Math.random() * 0.5;
-    const dist = (small ? 28 : 55) + Math.random() * (small ? 30 : 75);
-    const dx = Math.cos(angle) * dist;
-    const dy = Math.sin(angle) * dist;
-    const kind = i % 4 === 0 ? 'emoji' : i % 2 ? 'dot' : 'spark';
-    const p = add(`burst-${kind}`, kind === 'emoji' ? emoji : '');
-    if (kind !== 'emoji') p.style.background = colors[i % colors.length];
-    const spin = kind === 'spark' ? ` rotate(${(angle * 180) / Math.PI + 90}deg)` : '';
-    const dur = 650 + Math.random() * 450;
-    anims.push(p.animate([
-      { transform: `${center} translate(0, 0) scale(0)${spin}`, opacity: 1 },
-      { transform: `${center} translate(${dx * 0.75}px, ${dy * 0.75}px) scale(1.15)${spin}`, opacity: 1, offset: 0.35 },
-      { transform: `${center} translate(${dx}px, ${dy + 34}px) scale(.35)${spin}`, opacity: 0 }, // falls a little
-    ], { duration: dur, easing: 'cubic-bezier(.15, .7, .3, 1)', delay: Math.random() * 60, fill: 'both' }));
-  }
-
-  const done = () => layer.remove();
-  Promise.all(anims.map((a) => a.finished)).then(done, done);
-  setTimeout(done, 1600); // whatever happens (e.g. the page went to the background)
+  // 2. Copies of the emoji burst out with physics, 3. sparks in its colours.
+  const cannon = confettiCannon();
+  if (!cannon) return;
+  const origin = { x: x / innerWidth, y: y / innerHeight };
+  emojiShapes[emoji] ||= window.confetti.shapeFromText({ text: emoji, scalar: 2 });
+  const count = small ? 6 : PARTICLES;
+  cannon({
+    shapes: [emojiShapes[emoji]], scalar: small ? 1.4 : 1.8, particleCount: count,
+    spread: 100, startVelocity: small ? 22 : 32, gravity: 0.9, decay: 0.92, ticks: 110, origin, flat: true,
+  });
+  cannon({
+    colors: REACTION_ASSETS[emoji]?.colors || COLORS, particleCount: Math.round(count * 1.6), shapes: ['circle', 'square'],
+    scalar: 0.7, spread: 360, startVelocity: small ? 16 : 22, gravity: 0.7, decay: 0.9, ticks: 90, origin,
+  });
 }

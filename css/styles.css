@@ -1480,12 +1480,11 @@ button.cheer-chip:active { transform: scale(.88); }
 @keyframes who-in { from { opacity: 0; transform: translate(-50%, -80%) scale(.9); } }
 .cheer-chip { -webkit-touch-callout: none; }
 
-/* The reaction burst */
-.burst { position: fixed; z-index: 66; width: 0; height: 0; pointer-events: none; }
-/* Invisible unless animating: a piece that finished early must not reappear while the others are still flying. */
-.burst > span { position: absolute; left: 0; top: 0; line-height: 1; opacity: 0; will-change: transform, opacity; }
-.burst-big { font-size: 22px; filter: drop-shadow(0 6px 14px rgba(0, 0, 0, .45)); }
-.burst-emoji { font-size: 14px; }
-.burst-dot { width: 7px; height: 7px; border-radius: 50%; }
-.burst-spark { width: 3px; height: 11px; border-radius: 2px; }
-.burst-ring { width: 30px; height: 30px; border-radius: 50%; border: 3px solid; box-sizing: border-box; }
+/* The reaction effect: the big animated emoji and the confetti canvas, above the chat */
+.reaction-fx { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 66; pointer-events: none; }
+.reaction-big {
+  position: fixed; z-index: 67; pointer-events: none;
+  opacity: 0; /* only visible while animating */
+  filter: drop-shadow(0 10px 24px rgba(0, 0, 0, .5));
+}
+.reaction-big.plain { display: grid; place-items: center; font-size: 120px; line-height: 1; }

@@ -763,6 +763,7 @@ registerPanel('chat', {
   },
   onOpen() {
     els.app.classList.add('behind');
+    fx.preloadReactions(); // the animated emoji, so the first reaction plays right away
     store.markCheersSeen();
     renderUnread();
     clearInterval(chatTimer);

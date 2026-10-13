@@ -43,6 +43,8 @@ Only fresh saves notify: history uploaded when someone joins a team, or saves th
 
 Swiping up opens the **team chat**: messages, and a card each time someone reaches the daily goal ("🎉 Lea did all 30 push-ups!") that teammates react to (🔥 💪 👏 😂 ❤️). The reactions you got also show as a small pill on your day cards. A chat message notifies everyone in the team; a reaction notifies the person who finished. While the app is open, new ones drop in as a banner at the top.
 
+Reacting plays Google's animated emoji ([Noto Emoji Animation](https://googlefonts.github.io/noto-emoji-animation/), CC BY 4.0, copied into [`emoji/`](emoji/)) with a burst of emoji confetti.
+
 While it is being tried out, it is off unless a phone opens the app once with `?cheers` (`?cheers=0` turns it off again); swiping up then still opens the calendar. Demo mode always has it.
 
 ### Setup (once)
