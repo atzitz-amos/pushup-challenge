@@ -6,7 +6,8 @@
 import { CONFIG } from './config.js';
 import { dayKey, addDays, parseDay, diffDays } from './stats.js';
 import { sameName, TEAM_CHAT } from './store.js';
-import { t, dateFmt, capitalize } from './i18n.js';
+import { t, dateFmt, capitalize, getLang } from './i18n.js';
+import { reactionBurst, haptic } from './effects.js';
 
 export const REACTIONS = ['🔥', '💪', '👏', '😂', '❤️'];
 const CHAT_DAYS = 7; // days shown at first; "Show earlier days" adds more
@@ -82,13 +83,22 @@ function reactionBar(thread, me, { onToggle, popped = null, prev = () => undefin
     } else if (n) {
       chip.append(el('span', 'cheer-n', n));
     }
+    const names = list.map((c) => (sameName(c.author, me) ? t('cheer.you') : c.author));
     if (!mine) {
       chip.type = 'button';
       chip.setAttribute('aria-pressed', String(reacted));
-      chip.setAttribute('aria-label', t('cheer.react', { emoji }));
+      chip.setAttribute('aria-label', t('cheer.react', { emoji }) + (names.length ? ` (${listOf(names)})` : ''));
+      const held = holdToShow(chip, () => `${emoji} ${listOf(names)}`, names.length > 0);
       chip.addEventListener('click', (e) => {
         e.stopPropagation();
+        if (held()) return; // that was a long press: it showed the names
         onToggle(emoji, reacted);
+      });
+    } else {
+      // Your own day: you can't react, so a tap shows who did.
+      chip.addEventListener('click', (e) => {
+        e.stopPropagation();
+        showWho(chip, `${emoji} ${listOf(names)}`);
       });
     }
     if (popped?.emoji === emoji) chip.classList.add(popped.added ? 'lit' : 'unlit');
@@ -97,14 +107,49 @@ function reactionBar(thread, me, { onToggle, popped = null, prev = () => undefin
   return bar;
 }
 
-// Who reacted: "🔥 Mia, you · 💪 Lea".
-function whoReacted(thread, me) {
-  const parts = [];
-  for (const [emoji, list] of thread.reactions) {
-    if (!list.length) continue;
-    parts.push(`${emoji} ${list.map((c) => (sameName(c.author, me) ? t('cheer.you') : c.author)).join(', ')}`);
-  }
-  return parts.join(' · ');
+// "Lea, Mia and you" in the app's language.
+const listOf = (names) => new Intl.ListFormat(getLang(), { type: 'conjunction' }).format(names);
+
+// A small bubble above a chip saying who reacted. It goes away after a moment or on the next touch.
+let tip = null;
+function hideWho() {
+  tip?.remove();
+  tip = null;
+}
+function showWho(chip, text) {
+  hideWho();
+  tip = el('div', 'react-who', text);
+  document.body.appendChild(tip);
+  const r = chip.getBoundingClientRect();
+  const half = tip.offsetWidth / 2;
+  tip.style.left = `${Math.min(innerWidth - half - 8, Math.max(half + 8, r.left + r.width / 2))}px`;
+  tip.style.top = `${r.top - 8}px`;
+  const mine = tip;
+  setTimeout(() => tip === mine && hideWho(), 2600);
+  setTimeout(() => document.addEventListener('pointerdown', hideWho, { once: true, capture: true }), 0);
+}
+
+// Pressing and holding a chip shows who reacted. Returns held(): whether the press
+// that just ended was a long one (so its click doesn't also toggle the reaction).
+function holdToShow(chip, text, enabled) {
+  let timer = 0;
+  let long = false;
+  chip.addEventListener('pointerdown', () => {
+    long = false;
+    if (!enabled) return;
+    timer = setTimeout(() => {
+      long = true;
+      haptic(10);
+      showWho(chip, text());
+    }, 420);
+  });
+  for (const type of ['pointerup', 'pointerleave', 'pointercancel']) chip.addEventListener(type, () => clearTimeout(timer));
+  chip.addEventListener('contextmenu', (e) => e.preventDefault()); // no copy menu on a long press
+  return () => {
+    const was = long;
+    long = false;
+    return was;
+  };
 }
 
 /* ---------- Under your own day cards ---------- */
@@ -187,8 +232,6 @@ export function createChat(root, { getData, actions }) {
       },
     }));
     for (const [emoji, list] of thread.reactions) nextCounts.set(`${key}|${emoji}`, list.length);
-    const names = whoReacted(thread, data.me);
-    if (names) card.appendChild(el('p', 'chat-who', names));
     return card;
   }
 
@@ -260,11 +303,20 @@ export function createChat(root, { getData, actions }) {
     counts.clear();
     for (const [k, v] of nextCounts) counts.set(k, v);
     list.replaceChildren(...nodes);
+    hideWho();
+    const lit = list.querySelector('.cheer-chip.lit .cheer-emoji');
+    const others = [...list.querySelectorAll('.cheer-chip:not(.lit) .cheer-n.roll.up')].slice(0, 3)
+      .map((n) => n.parentElement.querySelector('.cheer-emoji'));
     if (stick) {
       list.scrollTop = list.scrollHeight;
       // When the page is only just being shown it has no height yet: again once it does.
       requestAnimationFrame(() => (list.scrollTop = list.scrollHeight));
     }
+    // Once the new layout (and scroll) is in place.
+    requestAnimationFrame(() => {
+      if (lit) reactionBurst(lit, lit.textContent);
+      for (const e of others) reactionBurst(e, e.textContent, { small: true });
+    });
   }
 
   form.addEventListener('submit', (e) => {
