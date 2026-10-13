@@ -711,19 +711,20 @@ function bannerItem(c) {
   return { avatar: initialOf(c.author), title: c.author, text: t('cheer.bReacted', { day: dayLabel(c.day) }), emoji: c.emoji, target: c };
 }
 
-// Opens the chat, at someone's "finished" card for a day when given (otherwise at the bottom).
-function openChat(owner, day) {
+// Opens the chat, at someone's "finished" card for a day when given (otherwise at the bottom),
+// playing a reaction there when given.
+function openChat(owner, day, emoji) {
   menu.close();
   const wasOpen = chatOpen();
   openPanel('chat');
-  setTimeout(() => chat.show(owner, day), wasOpen ? 0 : 450);
+  setTimeout(() => chat.show(owner, day, emoji), wasOpen ? 0 : 450);
 }
 
 // In-app notifications for new cheers; tapping one opens the chat there.
 const banner = createBanner({
   onOpen(target) {
     fx.haptic(8);
-    if (target && target.owner !== TEAM_CHAT) openChat(target.owner, target.day);
+    if (target && target.owner !== TEAM_CHAT) openChat(target.owner, target.day, target.emoji);
     else openChat();
   },
 });
@@ -763,6 +764,7 @@ registerPanel('chat', {
   },
   onOpen() {
     els.app.classList.add('behind');
+    chat.opened();
     fx.preloadReactions(); // the animated emoji, so the first reaction plays right away
     store.markCheersSeen();
     renderUnread();

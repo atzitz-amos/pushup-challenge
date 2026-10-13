@@ -204,6 +204,7 @@ export function createChat(root, { getData, actions }) {
   let primed = false; // the first render since the chat opened is done
   const counts = new Map(); // reaction counts on screen, to animate the ones that change
   let nextCounts = new Map();
+  let openedAt = 0; // when the chat started opening (effects wait until it is in place)
 
   const nearBottom = () => list.scrollHeight - list.scrollTop - list.clientHeight < 80;
 
@@ -305,18 +306,35 @@ export function createChat(root, { getData, actions }) {
     list.replaceChildren(...nodes);
     hideWho();
     const lit = list.querySelector('.cheer-chip.lit .cheer-emoji');
+    // Teammates' new reactions: on your own day they get the full effect (that's what a
+    // "reaction received" notification brought you here for), on others' a small one.
     const others = [...list.querySelectorAll('.cheer-chip:not(.lit) .cheer-n.roll.up')].slice(0, 3)
-      .map((n) => n.parentElement.querySelector('.cheer-emoji'));
+      .map((n) => ({ emoji: n.parentElement.querySelector('.cheer-emoji'), mine: !!n.closest('.chat-finish.mine') }));
     if (stick) {
       list.scrollTop = list.scrollHeight;
       // When the page is only just being shown it has no height yet: again once it does.
       requestAnimationFrame(() => (list.scrollTop = list.scrollHeight));
     }
-    // Once the new layout (and scroll) is in place.
-    requestAnimationFrame(() => {
-      if (lit) reactionBurst(lit, lit.textContent);
-      for (const e of others) reactionBurst(e, e.textContent, { small: true });
-    });
+    if (lit) play(lit);
+    for (const { emoji, mine } of others) {
+      // Just opened (e.g. from the notification): bring your card into view first.
+      if (mine && Date.now() - openedAt < 4000) play(emoji, { reveal: true });
+      else play(emoji, { small: !mine });
+    }
+  }
+
+  // Plays a reaction's effect once the chat has finished sliding in and is on screen,
+  // from where the chip is then. Off-screen chips play nothing (unless revealed first).
+  function play(emojiEl, { small = false, reveal = false } = {}) {
+    const wait = Math.max(0, openedAt + 480 - Date.now());
+    setTimeout(() => requestAnimationFrame(() => {
+      if (!root.classList.contains('open') || document.visibilityState !== 'visible' || !emojiEl.isConnected) return;
+      if (reveal) emojiEl.closest('.chat-finish').scrollIntoView({ block: 'center' });
+      const r = emojiEl.getBoundingClientRect();
+      const box = list.getBoundingClientRect();
+      if (r.bottom < box.top || r.top > box.bottom) return;
+      reactionBurst(emojiEl, emojiEl.textContent, { small });
+    }), wait);
   }
 
   form.addEventListener('submit', (e) => {
@@ -345,7 +363,8 @@ export function createChat(root, { getData, actions }) {
   return {
     render,
     // Scrolls to someone's "finished" card for a day and makes it glow (from a banner or a day pill).
-    show(owner, day) {
+    // emoji: a reaction to play there (opened from its banner).
+    show(owner, day, emoji) {
       const card = owner && list.querySelector(`[data-key="${CSS.escape(`${owner}|${day}`.toLowerCase())}"]`);
       if (!card) {
         list.scrollTop = list.scrollHeight;
@@ -355,9 +374,16 @@ export function createChat(root, { getData, actions }) {
       card.classList.remove('flash');
       void card.offsetWidth;
       card.classList.add('flash');
+      const chip = emoji && [...card.querySelectorAll('.cheer-emoji')].find((e) => e.textContent === emoji);
+      if (chip) play(chip);
+    },
+    // The chat started opening: effects wait until it is in place.
+    opened() {
+      openedAt = Date.now();
     },
     reset() {
       days = CHAT_DAYS;
+      openedAt = 0;
       firstSeen.clear();
       counts.clear();
       primed = false;
