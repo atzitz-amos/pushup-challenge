@@ -9,7 +9,7 @@
 //
 // Cheer (a reaction or a comment on someone's day, only inside a team):
 //   { id, team, owner, day, author, emoji, body, ts, up }
-//   owner: whose day it is; emoji for a reaction, body for a comment (the other is null)
+//   owner: whose day it is (TEAM_CHAT for a chat message); emoji for a reaction, body for a message
 
 import { DEMO, SUPABASE, DEFAULT_RULES, FEATURES } from './config.js';
 import { mockEntries, mockCheers, DEMO_TEAM, DEMO_MATES } from './demo.js';
@@ -21,6 +21,8 @@ const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // same alphabet as the s
 // Names are the identity within a team: the same name on another device is the same person.
 export const sameName = (a, b) => (a || '').trim().toLowerCase() === (b || '').trim().toLowerCase();
 export const normalizeCode = (code) => (code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+// Messages in the team chat are cheers whose "owner" is this (they are about no one's day in particular).
+export const TEAM_CHAT = '#team';
 
 // crypto.randomUUID only exists on https; the phone test server is plain http.
 function uid() {
@@ -477,14 +479,16 @@ export const store = {
     return flushCheers().catch(() => {});
   },
 
-  // Whether a cheer is news for you: about your day, or a comment in a thread you wrote in.
+  // Whether a cheer is news for you: a chat message, something about your day,
+  // or a comment on a day you commented on too.
   concernsMe(c) {
     if (wroteIt(c)) return false;
+    if (c.body && c.owner === TEAM_CHAT) return true;
     if (sameName(c.owner, state.user)) return true;
     return !!c.body && this.cheers().some((x) => x.body && wroteIt(x) && sameThread(x, c.owner, c.day));
   },
 
-  // Cheers for you that arrived since the team page was last opened.
+  // Cheers for you that arrived since the chat was last opened.
   unreadCheers() {
     return this.cheers().filter((c) => c.ts > state.cheersSeen && this.concernsMe(c)).length;
   },

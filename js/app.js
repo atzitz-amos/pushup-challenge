@@ -1,5 +1,5 @@
 import { CONFIG, DEMO, applyRules, endsOnChristmasEve } from './config.js';
-import { store, normalizeCode, sameName } from './store.js';
+import { store, normalizeCode, sameName, TEAM_CHAT } from './store.js';
 import { computeStats, dayKey, parseDay, addDays, diffDays, totalsByDay } from './stats.js';
 import { Wheel } from './wheel.js';
 import { createRing } from './ring.js';
@@ -12,7 +12,7 @@ import { pushStatus, wantsPush, enablePush, registerPush, unregisterPush, disabl
 import { onVerticalSwipe, onHorizontalSwipe } from './gestures.js';
 import { t, getLang, setLang, dateFmt, capitalize, translatePage } from './i18n.js';
 import { startTour } from './tour.js';
-import { summary as cheerSummary, threadOf, createThread, createBanner, dayLabel } from './cheers.js';
+import { summary as cheerSummary, threadOf, createChat, createBanner, dayLabel } from './cheers.js';
 
 const $ = (s) => document.querySelector(s);
 // The daily goal in effect (yours, or your team's); kept in step with CONFIG by useRules().
@@ -52,7 +52,10 @@ const els = {
   soundIcon: $('#soundIcon'),
   demoReset: $('#demoReset'),
   tourBtn: $('#tourBtn'),
-  thread: $('#thread'),
+  chatPanel: $('#panel-chat'),
+  chatTeam: $('#chatTeam'),
+  chatMenuItem: $('#chatMenuItem'),
+  chatMenuSub: $('#chatMenuSub'),
   topStats: $('.top-stats'),
   calendarPanel: $('#panel-calendar'),
   calendarBody: $('#calendarBody'),
@@ -551,7 +554,8 @@ const teamPage = createTeamPage(els.teamBody, {
     inviteCode,
     pushOffer: pushStatus().supported && !wantsPush() && !pushOfferDismissed(),
     cheersOn: store.cheersOn,
-    cheers: store.cheers(),
+    unread: store.cheersOn ? store.unreadCheers() : 0,
+    chatSub: chatSubtitle(),
   }),
   actions: {
     lookup: (code) => store.lookupTeam(code),
@@ -568,12 +572,7 @@ const teamPage = createTeamPage(els.teamBody, {
     dismissPush() {
       try { localStorage.setItem('pushups.notifyOffer', 'dismissed'); } catch { /* ignore */ }
     },
-    react(owner, day, emoji) {
-      const added = store.toggleReaction(owner, day, emoji);
-      renderDayCheers();
-      return added;
-    },
-    openThread: (owner, day) => thread.open(owner, day),
+    openChat: () => openPanel('chat'),
     async join(team) {
       await store.joinTeam(team); // uploads your history to the team, then syncs
       registerPush(store.team, user).catch((err) => console.warn('Notifications not registered:', err));
@@ -632,9 +631,9 @@ function refreshFromServer() {
   return refreshing;
 }
 
-/* ---------- Cheers: reactions and comments on each other's days ---------- */
+/* ---------- Cheers: the team chat, and reactions on finished days ---------- */
 
-// A spot on your day cards for the cheers you got (filled by renderDayCheers).
+// A spot on your day cards for the reactions you got (filled by renderDayCheers).
 function cheersSlot(key) {
   const slot = el('div', 'day-cheers-slot');
   slot.dataset.day = key;
@@ -645,36 +644,54 @@ function renderDayCheers() {
   const cheers = store.cheers();
   for (const slot of els.strip.querySelectorAll('.day-cheers-slot')) {
     const day = slot.dataset.day;
-    const row = store.cheersOn ? cheerSummary(threadOf(cheers, user, day), () => thread.open(user, day)) : null;
-    slot.replaceChildren(...(row ? [row] : []));
+    const pill = store.cheersOn ? cheerSummary(threadOf(cheers, user, day), () => openChat(user, day)) : null;
+    slot.replaceChildren(...(pill ? [pill] : []));
   }
 }
 
-// The dot on the menu button, and the count in the menu, for cheers you haven't seen.
-function renderUnread() {
+const chatOpen = () => els.chatPanel.classList.contains('open');
+const chatVisible = () => chatOpen() && document.visibilityState === 'visible';
+
+// Under "Team chat" in the menu and on the team page: what's new, or the last message.
+function chatSubtitle() {
   const n = store.cheersOn ? store.unreadCheers() : 0;
+  if (n) return t('chat.unread', { n });
+  const last = store.cheers().filter((c) => c.body).at(-1);
+  return last ? `${sameName(last.author, user) ? t('cheer.you') : last.author}: ${last.body}` : t('chat.menuSub');
+}
+
+// The dot on the menu button and the chat row in the menu.
+function renderUnread() {
+  const on = store.cheersOn;
+  const n = on ? store.unreadCheers() : 0;
   els.menuBtn.classList.toggle('unread', n > 0);
-  els.teamMenuSub.textContent = n ? t('cheer.unread', { n }) : store.team ? store.team.name : t('menu.teamSub');
+  els.chatMenuItem.hidden = !on;
+  els.chatMenuItem.classList.toggle('unread', n > 0);
+  els.chatMenuSub.textContent = chatSubtitle();
+  els.teamMenuSub.textContent = store.team ? store.team.name : t('menu.teamSub');
 }
 
 // Something changed in the cheers: update every place that shows them.
 function cheersChanged() {
+  if (chatVisible()) store.markCheersSeen(); // being read right now
   renderDayCheers();
   renderUnread();
-  if (thread.isOpen) thread.render();
+  if (chatOpen()) chat.render();
   if (els.teamPanel.classList.contains('open')) renderTeamPanel();
 }
 
-// After a sync: refresh what shows cheers, and tell about new ones for you.
+// After a sync: refresh what shows cheers, and announce new ones (unless the chat is open).
 function cheersSynced(res) {
-  // What arrives while a thread is open is being read right now.
-  if (res.changed && thread.isOpen && document.visibilityState === 'visible') store.markCheersSeen();
   if (res.changed) cheersChanged();
   // Each cheer is announced once (two syncs can report the same one).
-  const news = res.news.filter((c) => !announced.has(c.id) && !(thread.isOpen && thread.isShowing(c.owner, c.day)));
+  const news = res.news.filter((c) => !announced.has(c.id));
   for (const c of res.news) announced.add(c.id);
   if (!news.length || document.visibilityState !== 'visible') return;
-  // A few: one banner each. Many at once (e.g. after a while offline): one that opens the team page.
+  if (chatOpen()) {
+    fx.haptic(6);
+    return;
+  }
+  // A few: one banner each. Many at once (e.g. after a while offline): one that opens the chat.
   banner.show(news.length > 3
     ? [{ avatar: '💬', title: t('cheer.bMany', { n: news.length }), text: t('cheer.bTap'), target: null }]
     : news.map(bannerItem));
@@ -686,66 +703,85 @@ const announced = new Set();
 const initialOf = (name) => [...name][0]?.toUpperCase() ?? '?';
 
 function bannerItem(c) {
+  if (c.body && c.owner === TEAM_CHAT) return { avatar: initialOf(c.author), title: c.author, text: c.body, target: c };
   const where = sameName(c.owner, user) ? t('cheer.bOnYour') : t('cheer.bOnDay', { name: c.owner });
   if (c.body) return { avatar: initialOf(c.author), title: `${c.author} · ${where}`, text: c.body, target: c };
   return { avatar: initialOf(c.author), title: c.author, text: t('cheer.bReacted', { day: dayLabel(c.day) }), emoji: c.emoji, target: c };
 }
 
-// In-app notifications for new cheers; tapping one opens its thread.
+// Opens the chat, at someone's "finished" card for a day when given (otherwise at the bottom).
+function openChat(owner, day) {
+  menu.close();
+  const wasOpen = chatOpen();
+  openPanel('chat');
+  setTimeout(() => chat.show(owner, day), wasOpen ? 0 : 450);
+}
+
+// In-app notifications for new cheers; tapping one opens the chat there.
 const banner = createBanner({
   onOpen(target) {
     fx.haptic(8);
-    menu.close();
-    if (target) thread.open(target.owner, target.day);
-    else openPanel('team');
+    if (target && target.owner !== TEAM_CHAT) openChat(target.owner, target.day);
+    else openChat();
   },
 });
 
-const thread = createThread(els.thread, createSheet(els.thread), {
-  getData: () => ({ cheers: store.cheers(), entries: store.teamEntries(), me: user }),
+const chat = createChat(els.chatPanel, {
+  getData: () => ({ cheers: store.cheers(), entries: store.teamEntries(), members: store.teamMembers(), me: user }),
   actions: {
     react(owner, day, emoji) {
-      if (store.toggleReaction(owner, day, emoji)) fx.haptic(10);
+      const added = store.toggleReaction(owner, day, emoji);
+      fx.haptic(added ? 10 : 6);
       cheersChanged();
+      return added;
     },
-    comment(owner, day, text) {
-      store.addComment(owner, day, text);
+    send(text) {
+      store.addComment(TEAM_CHAT, dayKey(), text);
       fx.haptic(8);
+      fx.sound('tick', 20);
       cheersChanged();
       // The bubble shows as "sending" until the server has it.
-      store.uploadCheers().then(() => thread.isOpen && thread.render());
+      store.uploadCheers().then(() => chatOpen() && chat.render());
     },
     remove(id) {
       store.removeCheer(id);
       fx.haptic(12);
       cheersChanged();
     },
-    // While a thread is open it refreshes every few seconds, so a conversation flows.
-    opened() {
-      store.markCheersSeen();
-      renderUnread();
-      clearInterval(threadTimer);
-      threadTimer = setInterval(() => {
-        if (document.visibilityState === 'visible') store.syncCheers().then(cheersSynced);
-      }, 5000);
-    },
-    closed() {
-      clearInterval(threadTimer);
-      cheersChanged();
-    },
   },
 });
-let threadTimer = 0;
+
+// While the chat is open it refreshes every few seconds, so a conversation flows.
+let chatTimer = 0;
+registerPanel('chat', {
+  el: els.chatPanel,
+  render() {
+    els.chatTeam.textContent = store.team?.name ?? '';
+    chat.render({ scroll: true });
+  },
+  onOpen() {
+    els.app.classList.add('behind');
+    store.markCheersSeen();
+    renderUnread();
+    clearInterval(chatTimer);
+    chatTimer = setInterval(() => {
+      if (document.visibilityState === 'visible') store.syncCheers().then(cheersSynced);
+    }, 5000);
+    refreshFromServer();
+  },
+  onClose() {
+    els.app.classList.remove('behind');
+    clearInterval(chatTimer);
+    chat.reset();
+    renderUnread();
+  },
+});
 
 registerPanel('team', {
   el: els.teamPanel,
   render: renderTeamPanel,
   onOpen() {
     els.app.classList.add('behind');
-    if (store.cheersOn) {
-      store.markCheersSeen();
-      renderUnread();
-    }
     refreshFromServer();
   },
   onClose() {
@@ -838,59 +874,67 @@ registerPanel('calendar', {
   },
 });
 
-/* ---------- Swipe gestures for the calendar ---------- */
+/* ---------- Swipe up: the chat (or the calendar) ---------- */
 
-// Like switching apps on an iPhone: the calendar card follows the finger 1:1
-// while the main screen shrinks and dims behind it (--p: 0 = main, 1 = calendar).
-// On release, distance or a quick flick decides whether it opens or springs back.
+// Like switching apps on an iPhone: the page follows the finger 1:1 while the main
+// screen shrinks and dims behind it (--p: 0 = main, 1 = page). On release, distance
+// or a quick flick decides whether it opens or springs back. With cheers on, swiping
+// up opens the team chat; otherwise the calendar (which is also in the menu).
 const screenH = () => window.innerHeight;
 const flung = (dist, v) => dist > screenH() * 0.22 || v > 0.5;
+const swipePage = () => (store.cheersOn ? 'chat' : 'calendar');
+const panelEl = (id) => (id === 'chat' ? els.chatPanel : els.calendarPanel);
+let dragging = null; // the panel being dragged
 
-function dragTo(panelY, progress) {
+function dragTo(panel, panelY, progress) {
+  dragging = panel;
   document.body.classList.add('panel-drag');
-  els.calendarPanel.style.transform = `translateY(${panelY}px)`;
+  panel.style.transform = `translateY(${panelY}px)`;
   els.app.style.setProperty('--p', Math.min(1, Math.max(0, progress)));
 }
 
 function endDrag() {
   // Let the CSS transitions carry both layers from here to their resting state.
   document.body.classList.remove('panel-drag');
-  els.calendarPanel.style.transform = '';
+  if (dragging) dragging.style.transform = '';
+  dragging = null;
   els.app.style.removeProperty('--p');
 }
 
 // Swipe up on the main screen (the wheel and lists keep their own scrolling).
-let opening = false;
+let opening = null;
 onVerticalSwipe(els.app, {
-  canStart: (e) => !!user && els.calendarPanel.hidden && els.menu.hidden
+  canStart: (e) => !!user && els.calendarPanel.hidden && els.chatPanel.hidden && els.menu.hidden
     && !e.target.closest('.wheel, .sessions'),
   onMove(dy) {
     if (!opening) {
-      opening = true;
-      preparePanel('calendar').then(() => calendar?.show());
+      opening = swipePage();
+      preparePanel(opening).then(() => opening === 'calendar' && calendar?.show());
     }
     const pull = Math.max(0, -dy);
-    dragTo(Math.max(0, screenH() - pull), pull / screenH());
+    dragTo(panelEl(opening), Math.max(0, screenH() - pull), pull / screenH());
   },
   onEnd(cancelled, { dy, vy }) {
     if (!opening) return;
-    opening = false;
+    const id = opening;
+    opening = null;
     endDrag();
     if (!cancelled && flung(-dy, -vy)) {
       fx.haptic(8);
-      openPanel('calendar');
+      openPanel(id);
     } else {
-      settlePanel('calendar');
+      settlePanel(id);
     }
   },
 });
 
-// Swipe down on the open calendar to close it (horizontal swipes still change month).
-onVerticalSwipe(els.calendarPanel, {
-  canStart: () => els.calendarPanel.classList.contains('open') && els.calendarBody.scrollTop <= 0,
+// Swipe down to close: anywhere on the calendar when it is scrolled to the top
+// (horizontal swipes still change month); on the chat, from its header.
+const closeBySwipe = (panel, canStart) => onVerticalSwipe(panel, {
+  canStart: (e) => panel.classList.contains('open') && canStart(e),
   onMove(dy) {
     const pull = Math.max(0, dy);
-    dragTo(pull, 1 - pull / screenH());
+    dragTo(panel, pull, 1 - pull / screenH());
   },
   onEnd(cancelled, { dy, vy }) {
     endDrag();
@@ -900,6 +944,8 @@ onVerticalSwipe(els.calendarPanel, {
     }
   },
 });
+closeBySwipe(els.calendarPanel, () => els.calendarBody.scrollTop <= 0);
+closeBySwipe(els.chatPanel, (e) => !!e.target.closest('.panel-grab, .panel-head'));
 
 /* ---------- Guided tour ---------- */
 
@@ -952,8 +998,8 @@ function showTour() {
       emoji: '📅',
       target: null,
       gesture: 'swipe-up',
-      title: t('tour.calendar.title'),
-      text: t('tour.calendar.text'),
+      title: store.cheersOn ? t('tour.chat.title') : t('tour.calendar.title'),
+      text: store.cheersOn ? t('tour.chat.text') : t('tour.calendar.text'),
     },
     {
       emoji: '👥',
@@ -1036,7 +1082,7 @@ setInterval(() => {
 addEventListener('online', () => refreshFromServer());
 // Cheers are checked more often (the full sync stays every minute), so they show up quickly.
 setInterval(() => {
-  if (document.visibilityState === 'visible' && user && store.cheersOn && !thread.isOpen) {
+  if (document.visibilityState === 'visible' && user && store.cheersOn && !chatOpen()) {
     store.syncCheers().then(cheersSynced);
   }
 }, 20000);

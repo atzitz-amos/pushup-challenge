@@ -1,7 +1,8 @@
-// Supabase Edge Function: notifies about reactions and comments ("cheers").
+// Supabase Edge Function: notifies about the team chat and reactions ("cheers").
 // It is called by a database webhook on INSERT into public.cheers (see README):
+// - a chat message (owner '#team') notifies everyone in the team;
 // - a reaction notifies the person whose day it is;
-// - a comment notifies that person, and everyone else who commented on that day.
+// - a comment on a day (older app versions) notifies that person and the others who commented there.
 // Never the author themselves.
 //
 // Uses the same secrets as notify-team: VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT.
@@ -33,6 +34,7 @@ function db(path: string, init: RequestInit = {}) {
 }
 
 const same = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+const TEAM_CHAT = '#team';
 const short = (text: string) => (text.length > 120 ? `${text.slice(0, 119)}…` : text);
 
 Deno.serve(async (req) => {
@@ -46,7 +48,7 @@ Deno.serve(async (req) => {
     db(`push_subscriptions?team_code=eq.${code}&select=endpoint,user_name,p256dh,auth,lang`).then((r) => r.json()),
     db(`teams?code=eq.${code}&select=name`).then((r) => r.json()),
     db(`entries?team_code=eq.${code}&user_name=ilike.${ownerParam}&day=eq.${record.day}&select=count`).then((r) => r.json()),
-    record.body
+    record.body && record.owner !== TEAM_CHAT
       ? db(`cheers?team_code=eq.${code}&owner=ilike.${ownerParam}&day=eq.${record.day}&body=not.is.null&select=author`).then((r) => r.json())
       : Promise.resolve([]),
   ]);
@@ -54,10 +56,14 @@ Deno.serve(async (req) => {
   const team = teams[0] ?? { name: 'Your team' };
   const total = entries.reduce((sum: number, e: { count: number }) => sum + e.count, 0);
   const { author, owner } = record;
+  const chat = record.body && owner === TEAM_CHAT;
 
-  // Who hears about it: the owner of the day, plus (for comments) everyone who commented there.
-  const recipients = [owner, ...comments.map((c: { author: string }) => c.author)]
-    .filter((name, i, all) => !same(name, author) && all.findIndex((n) => same(n, name)) === i);
+  // Who hears about it: for a chat message everyone; otherwise the owner of the day,
+  // plus (for comments on a day) everyone who commented there.
+  const recipients = chat
+    ? subs.map((s: { user_name: string }) => s.user_name).filter((name: string) => !same(name, author))
+    : [owner, ...comments.map((c: { author: string }) => c.author)]
+      .filter((name, i, all) => !same(name, author) && all.findIndex((n) => same(n, name)) === i);
 
   // The text depends on whether it is your day or someone else's, and on the language.
   const body = (forOwner: boolean, lang: string) => {
@@ -66,6 +72,7 @@ Deno.serve(async (req) => {
       if (!total) return fr ? `${author} a réagi ${record.emoji} à ta journée` : `${author} reacted ${record.emoji} to your day`;
       return fr ? `${author} a réagi ${record.emoji} à tes ${total} pompes` : `${author} reacted ${record.emoji} to your ${total} push-ups`;
     }
+    if (chat) return `${author}: ${short(record.body)}`;
     const said = `« ${short(record.body)} »`;
     if (forOwner) return fr ? `${author} sur ta journée : ${said}` : `${author} on your day: "${short(record.body)}"`;
     return fr ? `${author} sur la journée de ${owner} : ${said}` : `${author} on ${owner}'s day: "${short(record.body)}"`;
@@ -77,7 +84,7 @@ Deno.serve(async (req) => {
       title: `💬 ${team.name}`,
       body: body(same(s.user_name, owner), s.lang ?? 'en'),
       tag: `cheer-${record.id}`, // every reaction and comment is its own notification
-      url: './#team',
+      url: './#chat',
     });
     try {
       await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, payload, { TTL: 3600 });

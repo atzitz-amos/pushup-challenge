@@ -39,11 +39,11 @@ When someone in your team saves push-ups, teammates get a phone notification ("L
 
 Only fresh saves notify: history uploaded when someone joins a team, or saves that reach the server much later, stay quiet.
 
-## Cheers (reactions and comments)
+## Team chat and cheers
 
-Teammates can react (🔥 💪 👏 😂 ❤️) and comment on each other's days: from the **Cheer them on** cards on the Team page, or the little pill on your own day cards. A reaction notifies the person whose day it is; a comment notifies them and everyone else who commented on that day.
+Swiping up opens the **team chat**: messages, and a card each time someone reaches the daily goal ("🎉 Lea did all 30 push-ups!") that teammates react to (🔥 💪 👏 😂 ❤️). The reactions you got also show as a small pill on your day cards. A chat message notifies everyone in the team; a reaction notifies the person who finished. While the app is open, new ones drop in as a banner at the top.
 
-While it is being tried out, it is off unless a phone opens the app once with `?cheers` (`?cheers=0` turns it off again). Demo mode always has it.
+While it is being tried out, it is off unless a phone opens the app once with `?cheers` (`?cheers=0` turns it off again); swiping up then still opens the calendar. Demo mode always has it.
 
 ### Setup (once)
 

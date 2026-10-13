@@ -58,20 +58,21 @@ export function mockEntries(user, now = new Date()) {
 const CHEERS = [
   ['me', 1, 'Lea', '🔥', null, 21, 30],
   ['me', 1, 'Mia', '💪', null, 21, 40],
-  ['me', 1, 'Lea', null, 'Two sets and done, nice 👏', 21, 32],
+  ['#team', 1, 'Lea', null, 'Two sets and done, nice 👏', 21, 32],
   ['Lea', 1, 'me', '🔥', null, 19, 0],
   ['Lea', 1, 'Mia', '❤️', null, 19, 10],
   ['Mia', 2, 'Lea', '👏', null, 20, 0],
   ['Lea', 0, 'Mia', '😂', null, 7, 25],
-  ['Lea', 0, 'Mia', null, 'Already?! It\'s 7am 😳', 7, 26],
-  ['Lea', 0, 'Lea', null, 'Early bird 🐦', 7, 31],
+  ['#team', 0, 'Mia', null, 'Already?! It\'s 7am 😳', 7, 26],
+  ['#team', 0, 'Lea', null, 'Early bird 🐦', 7, 31],
+  ['#team', 0, 'Mia', null, 'Doing mine at lunch 🥪', 7, 33],
   ['me', 0, 'Mia', '💪', null, 7, 45],
 ];
 
 export function mockCheers(user, now = new Date()) {
   const who = (name) => (name === 'me' ? user : name);
   return CHEERS
-    .filter(([owner, , author]) => ![owner, author].some((n) => n !== 'me' && n.toLowerCase() === user.trim().toLowerCase()))
+    .filter(([owner, , author]) => ![owner, author].some((n) => n !== 'me' && n !== '#team' && n.toLowerCase() === user.trim().toLowerCase()))
     .map(([owner, ago, author, emoji, body, h, m]) => {
       const day = new Date(now.getFullYear(), now.getMonth(), now.getDate() - ago);
       const at = new Date(day.getFullYear(), day.getMonth(), day.getDate(), h, m);

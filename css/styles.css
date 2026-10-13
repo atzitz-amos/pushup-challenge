@@ -1239,26 +1239,6 @@ button.cal-tile:active { transform: scale(.9); }
 .lang-swap { animation: tour-in .4s var(--snap) both; }
 
 /* ---------- Cheers: reactions and comments ---------- */
-.cheer-feed { display: flex; flex-direction: column; gap: 8px; }
-.cheer-empty { margin: 0; color: var(--muted); font-size: 14px; }
-.cheer-card {
-  display: flex; flex-direction: column; gap: 10px;
-  padding: 12px;
-  border-radius: 18px;
-  background: var(--card); border: 1px solid var(--stroke);
-  cursor: pointer;
-  transition: transform .15s var(--ease-out);
-}
-.cheer-card:active { transform: scale(.98); }
-.cheer-card.mine { border-color: rgba(56, 189, 248, .35); }
-.cheer-head { display: flex; align-items: center; gap: 10px; }
-.cheer-head .ava { width: 36px; height: 36px; font-size: 15px; }
-.cheer-who { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.cheer-who b { font-size: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cheer-who span { color: var(--muted); font-size: 13px; }
-.cheer-score { font-weight: 900; font-style: italic; font-variant-numeric: tabular-nums; color: var(--muted); }
-.cheer-score.complete { color: var(--green); }
-.cheer-foot { display: flex; align-items: center; gap: 8px; }
 .cheer-bar { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; gap: 6px; }
 .cheer-chip {
   display: inline-flex; align-items: center; gap: 4px;
@@ -1275,15 +1255,6 @@ button.cheer-chip:active { transform: scale(.88); }
 .cheer-chip.pop .cheer-emoji { animation: cheer-pop .5s var(--spring); }
 @keyframes cheer-pop { 0% { transform: scale(.6); } 50% { transform: scale(1.5) rotate(-8deg); } 100% { transform: none; } }
 .cheer-bar.own .cheer-chip { background: rgba(167, 139, 250, .12); }
-.cheer-count { flex: 0 0 auto; color: var(--muted); font-size: 14px; font-weight: 700; padding: 0 4px; }
-.cheer-count.has { color: var(--text); }
-.cheer-quote {
-  margin: 0; padding: 8px 10px;
-  border-radius: 12px; background: rgba(255, 255, 255, .04);
-  color: #c4cbe3; font-size: 14px;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.cheer-more { align-self: center; padding: 8px 14px; color: var(--blue); font-weight: 700; font-size: 14px; }
 
 /* Under your own day cards: a pill in the card's top corner (the cards have no room to grow) */
 .summary, .done-card { position: relative; }
@@ -1313,29 +1284,6 @@ button.cheer-chip:active { transform: scale(.88); }
   animation: pop .4s var(--spring);
 }
 
-/* Thread sheet */
-.thread-backdrop { z-index: 55; }
-.thread {
-  max-height: calc(100dvh - var(--kb, 0px) - 48px);
-  margin-bottom: var(--kb, 0px);
-  gap: 12px;
-  padding-bottom: calc(env(safe-area-inset-bottom) + 12px);
-}
-.thread-head { display: flex; align-items: center; gap: 12px; }
-.thread-head .ava { width: 44px; height: 44px; }
-.thread-head .cheer-who b { font-size: 19px; }
-.thread-close { flex: 0 0 auto; }
-.thread-reactions { display: flex; flex-direction: column; gap: 6px; }
-.cheer-bar.big .cheer-chip { height: 40px; padding: 0 12px; font-size: 15px; }
-.cheer-bar.big .cheer-emoji { font-size: 20px; }
-.thread-who { margin: 0; color: var(--muted); font-size: 13px; }
-.thread-list {
-  flex: 1 1 auto; min-height: 90px; overflow-y: auto; overscroll-behavior: contain;
-  display: flex; flex-direction: column; gap: 6px;
-  padding: 4px 2px;
-  -webkit-user-select: text; user-select: text;
-}
-.thread-empty { margin: auto; padding: 18px 0; color: var(--muted); font-size: 14px; text-align: center; }
 .bubble {
   position: relative; align-self: flex-start;
   max-width: 82%;
@@ -1354,25 +1302,6 @@ button.cheer-chip:active { transform: scale(.88); }
   display: block; margin: 6px 0 2px auto; padding: 5px 10px;
   border-radius: 10px; background: rgba(248, 113, 113, .2); color: #fca5a5; font-size: 13px; font-weight: 800;
 }
-.thread-form { display: flex; gap: 8px; align-items: center; }
-.thread-form input {
-  flex: 1; min-width: 0; height: 46px; padding: 0 16px;
-  border-radius: 23px; border: 1px solid var(--stroke);
-  background: rgba(255, 255, 255, .06); color: var(--text);
-  font: inherit; font-size: 16px; /* >=16px prevents iOS zoom */
-  -webkit-user-select: text; user-select: text; outline: none;
-}
-.thread-form input:focus { border-color: var(--blue); }
-.thread-form button {
-  flex: 0 0 auto; width: 46px; height: 46px; border-radius: 50%;
-  display: grid; place-items: center;
-  background: var(--grad); color: #04121a;
-  transition: transform .15s, opacity .2s;
-}
-.thread-form button:disabled { opacity: .35; }
-.thread-form button:not(:disabled):active { transform: scale(.88); }
-.thread-form svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2.8; stroke-linecap: round; stroke-linejoin: round; }
-
 /* In-app notification for new cheers: drops in from the top */
 .cheer-banner {
   position: fixed; z-index: 65; left: 50%;
@@ -1413,3 +1342,94 @@ button.cheer-chip:active { transform: scale(.88); }
 }
 .cheer-banner-emoji { flex: 0 0 auto; font-size: 28px; line-height: 1; }
 .cheer-banner.show .cheer-banner-emoji { animation: cheer-pop .6s var(--spring) .15s both; }
+
+/* ---------- Team chat page ---------- */
+.chat-panel { padding-bottom: calc(var(--kb, 0px) + env(safe-area-inset-bottom) + 10px); }
+.chat-title { min-width: 0; }
+.chat-title p { margin: 2px 0 0; color: var(--muted); font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat-list {
+  flex: 1; min-height: 0;
+  display: flex; flex-direction: column; gap: 4px;
+  overflow-y: auto; overscroll-behavior: contain;
+  padding: 4px 2px 12px;
+  scrollbar-width: none;
+  -webkit-user-select: text; user-select: text;
+}
+.chat-list::-webkit-scrollbar { display: none; }
+.chat-list > :first-child { margin-top: auto; } /* few messages: they sit at the bottom, like a chat */
+.chat-empty { align-self: center; margin: 0 0 20px; color: var(--muted); font-size: 15px; }
+.chat-earlier { align-self: center; margin-bottom: 8px; padding: 8px 14px; border-radius: 999px; background: var(--card); color: var(--blue); font-weight: 700; font-size: 13px; }
+.chat-day {
+  align-self: center; margin: 12px 0 6px; padding: 4px 12px;
+  border-radius: 999px; background: rgba(255, 255, 255, .06);
+  color: var(--muted); font-size: 12px; font-weight: 800; letter-spacing: .02em;
+}
+.bubble { margin-top: 6px; }
+.bubble.grouped { margin-top: 0; }
+.bubble-about { display: block; color: var(--muted); font-size: 11px; margin-bottom: 1px; }
+
+/* "Lea did all 30 push-ups!" with the reaction chips */
+.chat-finish {
+  align-self: stretch;
+  display: flex; flex-direction: column; gap: 7px;
+  margin: 6px 4px 2px; padding: 10px 12px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgba(52, 211, 153, .12), rgba(56, 189, 248, .08) 50%, rgba(167, 139, 250, .12));
+  border: 1px solid rgba(52, 211, 153, .28);
+  -webkit-user-select: none; user-select: none;
+  animation: slide-up .35s var(--snap) both;
+}
+.chat-finish.mine { border-color: rgba(167, 139, 250, .4); }
+.chat-finish.flash { animation: chat-flash 1.4s var(--ease-out); }
+@keyframes chat-flash { 0%, 40% { box-shadow: 0 0 0 3px rgba(56, 189, 248, .7), 0 0 30px rgba(56, 189, 248, .4); } 100% { box-shadow: none; } }
+.chat-finish-head { display: flex; align-items: center; gap: 10px; }
+.chat-finish-emoji { font-size: 20px; line-height: 1; }
+.chat-finish-head p { flex: 1; margin: 0; font-weight: 800; font-size: 14px; }
+.chat-finish-head time { color: var(--muted); font-size: 11px; }
+.chat-finish .cheer-bar { justify-content: center; gap: 5px; }
+.chat-finish .cheer-chip { height: 28px; padding: 0 8px; }
+.chat-finish .cheer-chip .cheer-emoji { font-size: 15px; }
+.chat-who { margin: 0; text-align: center; color: var(--muted); font-size: 12px; }
+
+.chat-form { display: flex; gap: 8px; align-items: center; padding-top: 8px; }
+.chat-form input {
+  flex: 1; min-width: 0; height: 46px; padding: 0 16px;
+  border-radius: 23px; border: 1px solid var(--stroke);
+  background: rgba(255, 255, 255, .06); color: var(--text);
+  font: inherit; font-size: 16px; /* >=16px prevents iOS zoom */
+  -webkit-user-select: text; user-select: text; outline: none;
+}
+.chat-form input:focus { border-color: var(--blue); }
+.chat-form button {
+  flex: 0 0 auto; width: 46px; height: 46px; border-radius: 50%;
+  display: grid; place-items: center;
+  background: var(--grad); color: #04121a;
+  transition: transform .15s, opacity .2s;
+}
+.chat-form button:disabled { opacity: .35; }
+.chat-form button:not(:disabled):active { transform: scale(.88); }
+.chat-form svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2.8; stroke-linecap: round; stroke-linejoin: round; }
+
+/* Unread in the menu, and the chat button on the team page */
+.menu-item.unread .mi-icon { position: relative; }
+.menu-item.unread .mi-icon::after {
+  content: ""; position: absolute; top: -2px; right: -4px;
+  width: 10px; height: 10px; border-radius: 50%; background: var(--purple); border: 2px solid #10172a;
+}
+.th-chat {
+  display: flex; align-items: center; gap: 12px;
+  width: 100%; padding: 14px; text-align: left;
+  border-radius: 20px;
+  background: linear-gradient(135deg, rgba(56, 189, 248, .1), rgba(167, 139, 250, .12));
+  border: 1px solid rgba(167, 139, 250, .3);
+}
+.th-chat:active { transform: scale(.98); }
+.th-chat-icon { font-size: 26px; position: relative; }
+.th-chat.unread .th-chat-icon::after {
+  content: ""; position: absolute; top: -2px; right: -4px;
+  width: 10px; height: 10px; border-radius: 50%; background: var(--purple);
+}
+.th-chat-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.th-chat-text b { font-size: 17px; }
+.th-chat-text small { color: var(--muted); font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.th-chat .chev { color: var(--muted); font-size: 22px; }
