@@ -1249,10 +1249,36 @@ button.cal-tile:active { transform: scale(.9); }
 }
 .cheer-chip .cheer-emoji { font-size: 16px; line-height: 1; filter: grayscale(.6); opacity: .6; transition: filter .2s, opacity .2s; }
 .cheer-chip.has .cheer-emoji, .cheer-chip.on .cheer-emoji { filter: none; opacity: 1; }
-.cheer-chip b { font-variant-numeric: tabular-nums; }
 .cheer-chip.on { background: rgba(56, 189, 248, .16); border-color: rgba(56, 189, 248, .55); }
+button.cheer-chip { transition: transform .12s; }
 button.cheer-chip:active { transform: scale(.88); }
-.cheer-chip.pop .cheer-emoji { animation: cheer-pop .5s var(--spring); }
+
+/* Discord-style reactions: the count rolls like an odometer... */
+.cheer-n {
+  display: inline-grid; overflow: hidden;
+  height: 1.25em; line-height: 1.25em;
+  font-weight: 800; font-variant-numeric: tabular-nums;
+}
+.cheer-n i { grid-area: 1 / 1; font-style: normal; text-align: center; }
+.cheer-n.roll.up .from { animation: roll-out-up .32s var(--snap) both; }
+.cheer-n.roll.up .to { animation: roll-in-up .32s var(--snap) both; }
+.cheer-n.roll.down .from { animation: roll-out-down .32s var(--snap) both; }
+.cheer-n.roll.down .to { animation: roll-in-down .32s var(--snap) both; }
+@keyframes roll-out-up { to { transform: translateY(-110%); opacity: 0; } }
+@keyframes roll-in-up { from { transform: translateY(110%); opacity: 0; } }
+@keyframes roll-out-down { to { transform: translateY(110%); opacity: 0; } }
+@keyframes roll-in-down { from { transform: translateY(-110%); opacity: 0; } }
+/* ...the chip you tap lights up with a bounce, or fades back when you take it back */
+.cheer-chip.lit { animation: chip-lit .45s var(--spring); }
+.cheer-chip.lit .cheer-emoji { animation: cheer-pop .5s var(--spring); }
+.cheer-chip.unlit { animation: chip-unlit .35s var(--ease-out); }
+@keyframes chip-lit {
+  0% { transform: scale(.85); background: rgba(56, 189, 248, .45); border-color: rgba(56, 189, 248, 1); }
+  60% { transform: scale(1.08); }
+}
+@keyframes chip-unlit {
+  0% { background: rgba(56, 189, 248, .16); border-color: rgba(56, 189, 248, .55); transform: scale(.92); }
+}
 @keyframes cheer-pop { 0% { transform: scale(.6); } 50% { transform: scale(1.5) rotate(-8deg); } 100% { transform: none; } }
 .cheer-bar.own .cheer-chip { background: rgba(167, 139, 250, .12); }
 

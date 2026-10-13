@@ -57,25 +57,41 @@ export function threadOf(cheers, owner, day) {
 }
 
 // The row of reaction chips. On your own day they only show what you got.
-function reactionBar(thread, me, { onToggle, popped = null } = {}) {
+// Animated like Discord: a count that changed rolls to its new value (up or down),
+// and the chip you just tapped bounces and lights up (or fades out when taken back).
+//   prev(emoji): the count shown before (undefined: nothing to animate)
+//   popped: { emoji, added } for the chip you just tapped
+function reactionBar(thread, me, { onToggle, popped = null, prev = () => undefined } = {}) {
   const mine = sameName(thread.owner, me);
   const bar = el('div', `cheer-bar${mine ? ' own' : ''}`);
   for (const [emoji, list] of thread.reactions) {
-    if (mine && !list.length) continue;
+    const n = list.length;
+    const before = prev(emoji);
+    if (mine && !n && !before) continue;
     const reacted = list.some((c) => sameName(c.author, me));
-    const chip = el(mine ? 'span' : 'button', `cheer-chip${reacted ? ' on' : ''}${list.length ? ' has' : ''}`);
+    const chip = el(mine ? 'span' : 'button', `cheer-chip${reacted ? ' on' : ''}${n ? ' has' : ''}`);
     chip.append(el('span', 'cheer-emoji', emoji));
-    if (list.length) chip.append(el('b', null, list.length));
+    if (before !== undefined && before !== n) {
+      // Old number out, new number in, like an odometer.
+      const roll = el('span', `cheer-n roll ${n > before ? 'up' : 'down'}`);
+      const from = el('i', 'from', before || '');
+      roll.append(from, el('i', 'to', n || ''));
+      from.addEventListener('animationend', () => from.remove());
+      setTimeout(() => from.remove(), 600); // in case the animation never ran (page in the background)
+      chip.append(roll);
+    } else if (n) {
+      chip.append(el('span', 'cheer-n', n));
+    }
     if (!mine) {
       chip.type = 'button';
       chip.setAttribute('aria-pressed', String(reacted));
       chip.setAttribute('aria-label', t('cheer.react', { emoji }));
       chip.addEventListener('click', (e) => {
         e.stopPropagation();
-        onToggle(emoji);
+        onToggle(emoji, reacted);
       });
     }
-    if (popped === emoji) chip.classList.add('pop');
+    if (popped?.emoji === emoji) chip.classList.add(popped.added ? 'lit' : 'unlit');
     bar.appendChild(chip);
   }
   return bar;
@@ -141,6 +157,8 @@ export function createChat(root, { getData, actions }) {
   // a reaction must not replay every animation). Nothing animates when the chat opens.
   const firstSeen = new Map();
   let primed = false; // the first render since the chat opened is done
+  const counts = new Map(); // reaction counts on screen, to animate the ones that change
+  let nextCounts = new Map();
 
   const nearBottom = () => list.scrollHeight - list.scrollTop - list.clientHeight < 80;
 
@@ -158,13 +176,17 @@ export function createChat(root, { getData, actions }) {
     );
     card.appendChild(head);
     card.appendChild(reactionBar(thread, data.me, {
-      popped: popped?.key === key ? popped.emoji : null,
-      onToggle(emoji) {
-        if (actions.react(item.owner, item.day, emoji)) popped = { key, emoji };
-        render();
+      popped: popped?.key === key ? popped : null,
+      prev: (emoji) => counts.get(`${key}|${emoji}`),
+      onToggle(emoji, reacted) {
+        // actions.react re-renders the chat, and that render plays the animation
+        // (a second render here would cut it short).
+        popped = { key, emoji, added: !reacted };
+        actions.react(item.owner, item.day, emoji);
         popped = null;
       },
     }));
+    for (const [emoji, list] of thread.reactions) nextCounts.set(`${key}|${emoji}`, list.length);
     const names = whoReacted(thread, data.me);
     if (names) card.appendChild(el('p', 'chat-who', names));
     return card;
@@ -221,6 +243,7 @@ export function createChat(root, { getData, actions }) {
     }
     if (!items.length) nodes.push(el('p', 'chat-empty', t('chat.empty')));
     let lastDay = '';
+    nextCounts = new Map();
     items.forEach((item, i) => {
       const day = item.kind === 'finish' ? item.day : dayKey(new Date(item.ts));
       if (day !== lastDay) {
@@ -234,6 +257,8 @@ export function createChat(root, { getData, actions }) {
       nodes.push(node);
     });
     primed = true;
+    counts.clear();
+    for (const [k, v] of nextCounts) counts.set(k, v);
     list.replaceChildren(...nodes);
     if (stick) {
       list.scrollTop = list.scrollHeight;
@@ -282,6 +307,7 @@ export function createChat(root, { getData, actions }) {
     reset() {
       days = CHAT_DAYS;
       firstSeen.clear();
+      counts.clear();
       primed = false;
       armed = null;
       input.blur();
