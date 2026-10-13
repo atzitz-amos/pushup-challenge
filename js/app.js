@@ -609,7 +609,8 @@ function refreshFromServer() {
     if (res.ok && (ownChanged || res.rulesChanged) && !today?.saving) await load(current);
     if (res.teamGone) showToast(t('toast.teamGone', { team: res.teamGone }), false);
     // Teammates' fresh saves while the app is open.
-    if (res.news?.length && document.visibilityState === 'visible') {
+    // (Not while the chat is open: the 'finished' card shows it there.)
+    if (res.news?.length && document.visibilityState === 'visible' && !chatOpen()) {
       const byPerson = [];
       for (const n of res.news) {
         const p = byPerson.find((x) => x.user === n.user);
@@ -623,6 +624,8 @@ function refreshFromServer() {
       registerPush(store.team, user).catch((err) => console.warn('Notifications not registered:', err));
     }
     if (res.cheers) cheersSynced(res.cheers);
+    // Teammates' new push-ups can add a 'finished' card (cheersSynced already redrew it if cheers changed).
+    if (res.changed && chatOpen() && !res.cheers?.changed) chat.render();
     if (els.teamPanel.classList.contains('open')) renderTeamPanel();
     if (res.rulesChanged && els.settingsPanel.classList.contains('open')) {
       settingsPage.reset(); // someone in the team changed the rules: show the new ones
@@ -772,8 +775,9 @@ registerPanel('chat', {
     store.markCheersSeen();
     renderUnread();
     clearInterval(chatTimer);
+    // Everything (push-ups too), so someone finishing shows up within seconds.
     chatTimer = setInterval(() => {
-      if (document.visibilityState === 'visible') store.syncCheers().then(cheersSynced);
+      if (document.visibilityState === 'visible') refreshFromServer();
     }, 5000);
     refreshFromServer();
   },
