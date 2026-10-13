@@ -66,7 +66,7 @@ Deno.serve(async (req) => {
     title: `💪 ${team.name}`,
     body: bodies[lang] ?? bodies.en,
     tag: `${record.team_code}-${name.toLowerCase()}`, // newer news from the same person replaces older
-    url: './#team',
+    url: './#chat', // where the "finished" card is, to react to
   });
 
   const others = subs.filter((s: { user_name: string }) => s.user_name.toLowerCase() !== name.toLowerCase());
