@@ -73,6 +73,10 @@ export function sound(name, value = 0) {
       tone(660, t, 0.18, { type: 'triangle' });
       tone(990, t + 0.09, 0.3, { type: 'triangle' });
       break;
+    case 'ping': // a cheer arrived
+      tone(880, t, 0.16, { type: 'sine', gain: 0.06 });
+      tone(1320, t + 0.08, 0.28, { type: 'sine', gain: 0.05 });
+      break;
     case 'complete':
       [523, 659, 784, 1047].forEach((f, i) => tone(f, t + i * 0.11, 0.45, { type: 'triangle', gain: 0.09 }));
       tone(1568, t + 0.5, 0.8, { gain: 0.05 });

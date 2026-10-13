@@ -338,3 +338,85 @@ export function createThread(root, sheet, { getData, actions }) {
     render,
   };
 }
+
+/* ---------- In-app banner ---------- */
+
+// A notification that drops in from the top while the app is open: tap it to see
+// the cheer, swipe it up to dismiss. Several arrive one after another.
+// item: { avatar, title, text, emoji?, target }   onOpen(target)
+export function createBanner({ onOpen }) {
+  const root = el('div', 'cheer-banner');
+  root.setAttribute('role', 'status');
+  root.hidden = true;
+  document.body.appendChild(root);
+  let queue = [];
+  let current = null;
+  let timer = 0;
+
+  function display(item) {
+    current = item;
+    const ava = el('div', 'cheer-banner-ava', item.avatar);
+    const text = el('div', 'cheer-banner-text');
+    text.append(el('b', null, item.title), el('p', null, item.text));
+    root.replaceChildren(ava, text, ...(item.emoji ? [el('span', 'cheer-banner-emoji', item.emoji)] : []));
+    root.style.transform = '';
+    root.hidden = false;
+    void root.offsetWidth;
+    root.classList.add('show');
+    timer = setTimeout(next, 4500);
+  }
+
+  // Slides the current banner away, then shows the next one (if any).
+  function next() {
+    clearTimeout(timer);
+    root.classList.remove('show');
+    root.style.transform = '';
+    const was = current;
+    current = null;
+    setTimeout(() => {
+      if (current) return;
+      if (queue.length) display(queue.shift());
+      else root.hidden = true;
+    }, was ? 350 : 0);
+  }
+
+  // Tap to open, swipe up to dismiss.
+  let start = null;
+  root.addEventListener('pointerdown', (e) => {
+    start = { y: e.clientY, dy: 0 };
+    root.setPointerCapture(e.pointerId);
+    root.classList.add('dragging');
+    clearTimeout(timer);
+  });
+  root.addEventListener('pointermove', (e) => {
+    if (!start) return;
+    start.dy = e.clientY - start.y;
+    root.style.transform = `translate(-50%, ${Math.min(0, start.dy) + Math.max(0, start.dy) * 0.2}px)`;
+  });
+  const release = () => {
+    if (!start) return;
+    const { dy } = start;
+    start = null;
+    root.classList.remove('dragging');
+    if (Math.abs(dy) < 8 && current) {
+      const target = current.target;
+      queue = [];
+      next();
+      onOpen(target);
+    } else if (dy < -30) {
+      next();
+    } else {
+      root.style.transform = '';
+      timer = setTimeout(next, 2500);
+    }
+  };
+  root.addEventListener('pointerup', release);
+  root.addEventListener('pointercancel', release);
+
+  return {
+    show(items) {
+      queue.push(...items);
+      if (!current && root.hidden) next();
+    },
+  };
+}

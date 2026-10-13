@@ -1,5 +1,5 @@
 import { CONFIG, DEMO, applyRules, endsOnChristmasEve } from './config.js';
-import { store, normalizeCode } from './store.js';
+import { store, normalizeCode, sameName } from './store.js';
 import { computeStats, dayKey, parseDay, addDays, diffDays, totalsByDay } from './stats.js';
 import { Wheel } from './wheel.js';
 import { createRing } from './ring.js';
@@ -12,7 +12,7 @@ import { pushStatus, wantsPush, enablePush, registerPush, unregisterPush, disabl
 import { onVerticalSwipe, onHorizontalSwipe } from './gestures.js';
 import { t, getLang, setLang, dateFmt, capitalize, translatePage } from './i18n.js';
 import { startTour } from './tour.js';
-import { summary as cheerSummary, threadOf, createThread } from './cheers.js';
+import { summary as cheerSummary, threadOf, createThread, createBanner, dayLabel } from './cheers.js';
 
 const $ = (s) => document.querySelector(s);
 // The daily goal in effect (yours, or your team's); kept in step with CONFIG by useRules().
@@ -670,14 +670,36 @@ function cheersSynced(res) {
   // What arrives while a thread is open is being read right now.
   if (res.changed && thread.isOpen && document.visibilityState === 'visible') store.markCheersSeen();
   if (res.changed) cheersChanged();
-  const news = res.news.filter((c) => !(thread.isOpen && thread.isShowing(c.owner, c.day)));
+  // Each cheer is announced once (two syncs can report the same one).
+  const news = res.news.filter((c) => !announced.has(c.id) && !(thread.isOpen && thread.isShowing(c.owner, c.day)));
+  for (const c of res.news) announced.add(c.id);
   if (!news.length || document.visibilityState !== 'visible') return;
-  const c = news.at(-1);
-  const text = news.length > 1 ? t('cheer.toastMany', { n: news.length })
-    : c.body ? `${c.author}: ${c.body}` : t('cheer.toastReact', { name: c.author, emoji: c.emoji });
-  showToast(text, false);
-  fx.haptic(8);
+  // A few: one banner each. Many at once (e.g. after a while offline): one that opens the team page.
+  banner.show(news.length > 3
+    ? [{ avatar: '💬', title: t('cheer.bMany', { n: news.length }), text: t('cheer.bTap'), target: null }]
+    : news.map(bannerItem));
+  fx.sound('ping');
+  fx.haptic(12);
 }
+
+const announced = new Set();
+const initialOf = (name) => [...name][0]?.toUpperCase() ?? '?';
+
+function bannerItem(c) {
+  const where = sameName(c.owner, user) ? t('cheer.bOnYour') : t('cheer.bOnDay', { name: c.owner });
+  if (c.body) return { avatar: initialOf(c.author), title: `${c.author} · ${where}`, text: c.body, target: c };
+  return { avatar: initialOf(c.author), title: c.author, text: t('cheer.bReacted', { day: dayLabel(c.day) }), emoji: c.emoji, target: c };
+}
+
+// In-app notifications for new cheers; tapping one opens its thread.
+const banner = createBanner({
+  onOpen(target) {
+    fx.haptic(8);
+    menu.close();
+    if (target) thread.open(target.owner, target.day);
+    else openPanel('team');
+  },
+});
 
 const thread = createThread(els.thread, createSheet(els.thread), {
   getData: () => ({ cheers: store.cheers(), entries: store.teamEntries(), me: user }),
@@ -1012,6 +1034,12 @@ setInterval(() => {
   if (document.visibilityState === 'visible') refreshFromServer();
 }, 60000);
 addEventListener('online', () => refreshFromServer());
+// Cheers are checked more often (the full sync stays every minute), so they show up quickly.
+setInterval(() => {
+  if (document.visibilityState === 'visible' && user && store.cheersOn && !thread.isOpen) {
+    store.syncCheers().then(cheersSynced);
+  }
+}, 20000);
 
 els.onboardForm.addEventListener('submit', async (e) => {
   e.preventDefault();
