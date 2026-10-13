@@ -219,7 +219,7 @@ export function reactionBurst(fromEl, emoji, { small = false } = {}) {
       { transform: 'translate(-50%, -150%) scale(3.2)', opacity: 1, offset: 0.4 },
       { transform: 'translate(-50%, -175%) scale(3.4)', opacity: 1, offset: 0.7 },
       { transform: 'translate(-50%, -200%) scale(2.6)', opacity: 0 },
-    ], { duration: 1000, easing: 'cubic-bezier(.2, .8, .2, 1)' }));
+    ], { duration: 1000, easing: 'cubic-bezier(.2, .8, .2, 1)', fill: 'both' }));
   }
 
   const ring = add('burst-ring');
@@ -227,7 +227,7 @@ export function reactionBurst(fromEl, emoji, { small = false } = {}) {
   anims.push(ring.animate([
     { transform: `${center} scale(.3)`, opacity: 0.9 },
     { transform: `${center} scale(${small ? 2.2 : 3.4})`, opacity: 0 },
-  ], { duration: small ? 450 : 600, easing: 'cubic-bezier(.2, .8, .2, 1)' }));
+  ], { duration: small ? 450 : 600, easing: 'cubic-bezier(.2, .8, .2, 1)', fill: 'both' }));
 
   const n = small ? 8 : 20;
   for (let i = 0; i < n; i++) {
@@ -244,7 +244,7 @@ export function reactionBurst(fromEl, emoji, { small = false } = {}) {
       { transform: `${center} translate(0, 0) scale(0)${spin}`, opacity: 1 },
       { transform: `${center} translate(${dx * 0.75}px, ${dy * 0.75}px) scale(1.15)${spin}`, opacity: 1, offset: 0.35 },
       { transform: `${center} translate(${dx}px, ${dy + 34}px) scale(.35)${spin}`, opacity: 0 }, // falls a little
-    ], { duration: dur, easing: 'cubic-bezier(.15, .7, .3, 1)', delay: Math.random() * 60 }));
+    ], { duration: dur, easing: 'cubic-bezier(.15, .7, .3, 1)', delay: Math.random() * 60, fill: 'both' }));
   }
 
   const done = () => layer.remove();

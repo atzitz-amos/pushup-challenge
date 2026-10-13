@@ -1482,7 +1482,8 @@ button.cheer-chip:active { transform: scale(.88); }
 
 /* The reaction burst */
 .burst { position: fixed; z-index: 66; width: 0; height: 0; pointer-events: none; }
-.burst > span { position: absolute; left: 0; top: 0; line-height: 1; will-change: transform, opacity; }
+/* Invisible unless animating: a piece that finished early must not reappear while the others are still flying. */
+.burst > span { position: absolute; left: 0; top: 0; line-height: 1; opacity: 0; will-change: transform, opacity; }
 .burst-big { font-size: 22px; filter: drop-shadow(0 6px 14px rgba(0, 0, 0, .45)); }
 .burst-emoji { font-size: 14px; }
 .burst-dot { width: 7px; height: 7px; border-radius: 50%; }
