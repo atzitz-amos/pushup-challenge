@@ -45,7 +45,7 @@ Swiping up opens the **team chat**: messages, and a card each time someone reach
 
 Reacting plays Google's animated emoji ([Noto Emoji Animation](https://googlefonts.github.io/noto-emoji-animation/), CC BY 4.0, copied into [`emoji/`](emoji/)) with a burst of emoji confetti.
 
-While it is being tried out, it is off unless a phone opens the app once with `?cheers` (`?cheers=0` turns it off again); swiping up then still opens the calendar. Demo mode always has it.
+People who used the app before the chat existed see a one-time "New" popup about it.
 
 ### Setup (once)
 

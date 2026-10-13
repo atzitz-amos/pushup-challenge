@@ -1488,3 +1488,25 @@ button.cheer-chip:active { transform: scale(.88); }
   filter: drop-shadow(0 10px 24px rgba(0, 0, 0, .5));
 }
 .reaction-big.plain { display: grid; place-items: center; font-size: 120px; line-height: 1; }
+
+/* "New feature" popup (on the name screen's overlay and card) */
+.whatsnew { z-index: 64; }
+.whatsnew-card { position: relative; gap: 12px; }
+.whatsnew-badge {
+  align-self: center;
+  padding: 4px 12px; border-radius: 999px;
+  background: var(--grad); color: #04121a;
+  font-size: 12px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase;
+}
+.whatsnew-emoji { font-size: 60px; line-height: 1; animation: whatsnew-wiggle 2.4s var(--spring) .5s infinite; }
+@keyframes whatsnew-wiggle {
+  0%, 60%, 100% { transform: none; }
+  10% { transform: rotate(-12deg) scale(1.1); }
+  20% { transform: rotate(10deg) scale(1.1); }
+  30% { transform: rotate(-6deg); }
+  40% { transform: rotate(3deg); }
+}
+.whatsnew-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; text-align: left; }
+.whatsnew-list li { display: flex; gap: 12px; align-items: flex-start; padding: 10px 12px; border-radius: 16px; background: rgba(255, 255, 255, .05); font-size: 15px; line-height: 1.35; }
+.whatsnew-list li > span:first-child { font-size: 20px; line-height: 1.2; }
+.whatsnew-later { padding: 6px; color: var(--muted); font-weight: 700; font-size: 15px; }

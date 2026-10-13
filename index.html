@@ -239,5 +239,21 @@
       <button class="save" type="submit" data-i18n="onboard.start">Start</button>
     </form>
   </div>
+
+  <!-- "New feature" popup, shown once to people who used the app before it. -->
+  <div class="onboard whatsnew" id="whatsNew" role="dialog" aria-modal="true" aria-labelledby="whatsNewTitle" hidden>
+    <div class="onboard-card whatsnew-card">
+      <span class="whatsnew-badge" data-i18n="new.badge">New</span>
+      <div class="whatsnew-emoji" aria-hidden="true">💬</div>
+      <h2 id="whatsNewTitle" data-i18n="new.title">The team chat is here!</h2>
+      <ul class="whatsnew-list">
+        <li><span aria-hidden="true">👆</span><span data-i18n="new.swipe">Swipe up from anywhere to open it. The calendar is now in the menu.</span></li>
+        <li><span aria-hidden="true">🎉</span><span data-i18n="new.finish">When someone finishes their push-ups, react with 🔥 💪 👏 😂 ❤️</span></li>
+        <li><span aria-hidden="true">🔔</span><span data-i18n="new.notify">Write to each other, and get notified when your team writes or reacts.</span></li>
+      </ul>
+      <button class="save" id="whatsNewGo" type="button">Open the chat</button>
+      <button class="whatsnew-later" id="whatsNewLater" type="button" data-i18n="new.later">Later</button>
+    </div>
+  </div>
 </body>
 </html>

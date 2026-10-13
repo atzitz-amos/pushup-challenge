@@ -42,23 +42,9 @@ export const PUSH = {
 // The challenge then starts 9 days ago with sample data.
 export const DEMO = !!globalThis.PUSHUP_DEMO || new URLSearchParams(location.search).has('demo');
 
-// Features being tried out before everyone gets them. Opening the app once with
-// ?cheers turns that one on for this phone (?cheers=0 turns it off again).
-function flag(name) {
-  const params = new URLSearchParams(location.search);
-  const key = `pushups.flag.${name}`;
-  try {
-    if (params.has(name)) {
-      if (params.get(name) === '0') localStorage.removeItem(key);
-      else localStorage.setItem(key, '1');
-    }
-    return !!localStorage.getItem(key);
-  } catch {
-    return params.has(name) && params.get(name) !== '0';
-  }
-}
+// Features that can be switched off as a whole.
 export const FEATURES = {
-  cheers: DEMO || flag('cheers'), // reactions and comments on each other's days
+  cheers: true, // the team chat, with reactions on finished days
 };
 
 if (DEMO) {

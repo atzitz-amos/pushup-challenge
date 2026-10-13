@@ -67,6 +67,9 @@ const els = {
   onboardTitle: $('#onboardTitle'),
   onboardRules: $('#onboardRules'),
   onboardLangs: $('#onboardLangs'),
+  whatsNew: $('#whatsNew'),
+  whatsNewGo: $('#whatsNewGo'),
+  whatsNewLater: $('#whatsNewLater'),
   app: $('.app'),
 };
 
@@ -1018,6 +1021,7 @@ function showTour() {
     onEnd() {
       setTourSeen(true);
       fx.haptic(8);
+      maybeShowWhatsNew();
     },
   });
 }
@@ -1027,6 +1031,42 @@ function maybeShowTour() {
   if (inviteCode || tourSeen()) return;
   setTimeout(showTour, 450);
 }
+
+/* ---------- "New feature" popup ---------- */
+
+// Tells people who used the app before about the team chat, once. People who start
+// now don't get it (nothing is new to them, and the tour covers the chat), except in
+// the demo, where it comes after the tour so it can be seen.
+const NEW_KEY = DEMO ? 'pushups.demo.new.chat' : 'pushups.new.chat';
+const newSeen = () => { try { return !!localStorage.getItem(NEW_KEY); } catch { return true; } };
+function setNewSeen(seen) {
+  try {
+    if (seen) localStorage.setItem(NEW_KEY, '1');
+    else localStorage.removeItem(NEW_KEY);
+  } catch { /* ignore */ }
+}
+
+function maybeShowWhatsNew() {
+  if (!user || newSeen() || !tourSeen() || inviteCode) return;
+  setTimeout(() => {
+    if (!user || newSeen() || document.querySelector('.tour')) return;
+    // In a team the button opens the chat; without one there is no chat yet.
+    els.whatsNewGo.textContent = store.cheersOn ? t('new.open') : t('new.gotIt');
+    els.whatsNewLater.hidden = !store.cheersOn;
+    els.whatsNew.classList.remove('leaving');
+    els.whatsNew.hidden = false;
+    fx.haptic(10);
+  }, 700);
+}
+
+function closeWhatsNew(openChatToo) {
+  setNewSeen(true);
+  els.whatsNew.classList.add('leaving');
+  setTimeout(() => (els.whatsNew.hidden = true), 400);
+  if (openChatToo && store.cheersOn) setTimeout(() => openChat(), 250);
+}
+els.whatsNewGo.addEventListener('click', () => closeWhatsNew(true));
+els.whatsNewLater.addEventListener('click', () => closeWhatsNew(false));
 
 /* ---------- Setup ---------- */
 
@@ -1097,6 +1137,7 @@ els.onboardForm.addEventListener('submit', async (e) => {
   const name = els.nameInput.value.trim();
   if (!name) return;
   await store.setUser(name);
+  if (!DEMO) setNewSeen(true);
   user = name;
   els.onboard.classList.add('leaving');
   setTimeout(() => (els.onboard.hidden = true), 400);
@@ -1155,6 +1196,7 @@ if (DEMO) {
     menu.close();
     await store.reset();
     setTourSeen(false);
+    setNewSeen(false);
     user = null;
     hideToast();
     els.nameInput.value = '';
@@ -1170,6 +1212,7 @@ if (user) {
   await load(); // instantly, from what is saved on this phone
   refreshFromServer();
   maybeShowTour();
+  maybeShowWhatsNew();
   openInvite();
 } else {
   showOnboarding();
