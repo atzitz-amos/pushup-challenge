@@ -290,8 +290,18 @@ language sql security definer set search_path = public as $$
   where team_code = upper(trim(p_code)) and lower(author) = lower(trim(p_name)) and id = any (p_ids);
 $$;
 
+-- "Reset my progress": deletes a person's messages and reactions, and the reactions on their days.
+create or replace function public.reset_cheers(p_code text, p_name text)
+returns void
+language sql security definer set search_path = public as $$
+  delete from cheers
+  where team_code = upper(trim(p_code))
+    and (lower(author) = lower(trim(p_name)) or lower(owner) = lower(trim(p_name)));
+$$;
+
 grant execute on function
   public.team_cheers(text),
   public.add_cheers(text, json),
-  public.remove_cheers(text, text, uuid[])
+  public.remove_cheers(text, text, uuid[]),
+  public.reset_cheers(text, text)
 to anon, authenticated;

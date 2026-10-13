@@ -246,10 +246,18 @@ export const store = {
 
   // Deletes all your push-ups: in your team on the server first (so they don't
   // come back on the next sync), then on this phone. Throws when offline.
+  // In the chat too: your messages and reactions, and the reactions on your days.
   async resetProgress() {
-    if (SERVER && state.team) await rpc('reset_entries', { p_code: state.team.code, p_name: state.user });
+    if (SERVER && state.team) {
+      const args = { p_code: state.team.code, p_name: state.user };
+      await rpc('reset_entries', args);
+      // A database without reset_cheers yet (cheers.sql not run again): the push-ups are reset anyway.
+      if (FEATURES.cheers) await rpc('reset_cheers', args).catch((err) => console.warn('Chat not reset:', err));
+    }
     state.entries = state.entries.filter((e) => !mine(e));
     state.removed = [];
+    state.cheers = state.cheers.filter((c) => !wroteIt(c) && !sameName(c.owner, state.user));
+    state.cheersRemoved = [];
     persist();
   },
 

@@ -818,6 +818,7 @@ const settingsPage = createSettingsPage(els.settingsBody, {
     await store.resetProgress();
     fx.haptic(15);
     await load(current);
+    cheersChanged();
     showToast(t('toast.progressReset'), false);
   },
   async startOver() {
