@@ -645,6 +645,8 @@ function renderDayCheers() {
   for (const slot of els.strip.querySelectorAll('.day-cheers-slot')) {
     const day = slot.dataset.day;
     const pill = store.cheersOn ? cheerSummary(threadOf(cheers, user, day), () => openChat(user, day)) : null;
+    // Unchanged: leave it (replacing it would replay its pop).
+    if ((pill?.textContent ?? '') === slot.textContent) continue;
     slot.replaceChildren(...(pill ? [pill] : []));
   }
 }

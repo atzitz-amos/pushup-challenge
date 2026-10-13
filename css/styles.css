@@ -1290,8 +1290,8 @@ button.cheer-chip:active { transform: scale(.88); }
   padding: 8px 12px 6px;
   border-radius: 18px 18px 18px 6px;
   background: rgba(255, 255, 255, .07);
-  animation: slide-up .3s var(--snap) both;
 }
+.bubble.new { animation: slide-up .3s var(--snap) both; }
 .bubble.own { align-self: flex-end; border-radius: 18px 18px 6px 18px; background: linear-gradient(135deg, rgba(52, 211, 153, .3), rgba(56, 189, 248, .3) 55%, rgba(167, 139, 250, .35)); cursor: pointer; }
 .bubble.sending { opacity: .6; }
 .bubble.armed { outline: 2px solid rgba(248, 113, 113, .6); }
@@ -1377,8 +1377,8 @@ button.cheer-chip:active { transform: scale(.88); }
   background: linear-gradient(135deg, rgba(52, 211, 153, .12), rgba(56, 189, 248, .08) 50%, rgba(167, 139, 250, .12));
   border: 1px solid rgba(52, 211, 153, .28);
   -webkit-user-select: none; user-select: none;
-  animation: slide-up .35s var(--snap) both;
 }
+.chat-finish.new { animation: slide-up .35s var(--snap) both; }
 .chat-finish.mine { border-color: rgba(167, 139, 250, .4); }
 .chat-finish.flash { animation: chat-flash 1.4s var(--ease-out); }
 @keyframes chat-flash { 0%, 40% { box-shadow: 0 0 0 3px rgba(56, 189, 248, .7), 0 0 30px rgba(56, 189, 248, .4); } 100% { box-shadow: none; } }

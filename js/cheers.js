@@ -137,6 +137,10 @@ export function createChat(root, { getData, actions }) {
   let days = CHAT_DAYS;
   let armed = null; // id of your message showing "Delete"
   let popped = null; // { key, emoji } of the chip just tapped
+  // When each item first appeared: only ones that just arrived slide in (re-rendering after
+  // a reaction must not replay every animation). Nothing animates when the chat opens.
+  const firstSeen = new Map();
+  let primed = false; // the first render since the chat opened is done
 
   const nearBottom = () => list.scrollHeight - list.scrollTop - list.clientHeight < 80;
 
@@ -223,8 +227,13 @@ export function createChat(root, { getData, actions }) {
         nodes.push(el('div', 'chat-day', dayLabel(day)));
         lastDay = day;
       }
-      nodes.push(item.kind === 'finish' ? finishCard(item, data) : bubble(item, items[i - 1], data));
+      const node = item.kind === 'finish' ? finishCard(item, data) : bubble(item, items[i - 1], data);
+      const key = item.kind === 'finish' ? `f:${item.owner.toLowerCase()}|${item.day}` : `m:${item.id}`;
+      if (!firstSeen.has(key)) firstSeen.set(key, primed ? Date.now() : 0);
+      if (Date.now() - firstSeen.get(key) < 400) node.classList.add('new');
+      nodes.push(node);
     });
+    primed = true;
     list.replaceChildren(...nodes);
     if (stick) {
       list.scrollTop = list.scrollHeight;
@@ -272,6 +281,8 @@ export function createChat(root, { getData, actions }) {
     },
     reset() {
       days = CHAT_DAYS;
+      firstSeen.clear();
+      primed = false;
       armed = null;
       input.blur();
     },
